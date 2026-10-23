@@ -89,6 +89,21 @@ HTML_PAGE = """<!DOCTYPE html>
         .kline-filter-btn { background: #1c2842; border: 1px solid var(--border); color: #cbd5e1; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
         .kline-filter-btn:hover, .kline-filter-btn.active { background: #2563eb; color: #fff; border-color: #3b82f6; }
 
+        /* 🗂️ 页面多板块导航系统 */
+        .module-nav-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; border-bottom: 1px solid var(--border); padding-bottom: 14px; flex-wrap: wrap; }
+        .module-tab-btn { background: #131c2e; border: 1px solid var(--border); color: #94a3b8; padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .module-tab-btn:hover { background: #1c2842; color: #fff; }
+        .module-tab-btn.active { background: linear-gradient(135deg, rgba(2, 132, 199, 0.22), rgba(37, 99, 235, 0.22)); border-color: #38bdf8; color: #38bdf8; box-shadow: 0 0 15px rgba(56, 189, 248, 0.18); }
+        .module-badge-plan { font-size: 10px; background: rgba(255,255,255,0.08); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+        
+        .module-pane { display: none; animation: fadeIn 0.25s ease-in-out; }
+        .module-pane.active { display: block; }
+
+        .module-placeholder-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 60px 30px; text-align: center; margin-top: 10px; }
+        .placeholder-icon { font-size: 46px; margin-bottom: 16px; display: inline-block; }
+        .placeholder-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+        .placeholder-desc { font-size: 14px; color: var(--text-secondary); max-width: 560px; margin: 0 auto 24px auto; line-height: 1.6; }
+
         /* 🎮 沙盘推演样式 */
         .sandtable-box { background: linear-gradient(180deg, #131c2e 0%, #0d1525 100%); border: 1px solid #293d66; border-radius: 12px; padding: 22px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.35); }
         .sandtable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
@@ -214,6 +229,28 @@ HTML_PAGE = """<!DOCTYPE html>
             </div>
             <div id="sourceTag" class="badge badge-live">东方财富实时数据源</div>
         </header>
+
+        <!-- 🗂️ 页面业务板块导航栏 (支持后续无缝扩展新业务模块) -->
+        <nav class="module-nav-bar" id="moduleNavBar">
+            <button class="module-tab-btn active" id="tab-anomaly" onclick="switchModule('anomaly')">
+                <span>📈 异动监控与推演沙盘</span>
+            </button>
+            <button class="module-tab-btn" id="tab-chips" onclick="switchModule('chips')">
+                <span>💼 主力筹码与盘口监测</span>
+                <span class="module-badge-plan">规划中</span>
+            </button>
+            <button class="module-tab-btn" id="tab-themes" onclick="switchModule('themes')">
+                <span>🔥 题材梯队与连板效应</span>
+                <span class="module-badge-plan">规划中</span>
+            </button>
+            <button class="module-tab-btn" id="tab-backtest" onclick="switchModule('backtest')">
+                <span>⚙️ 策略回测与预警中心</span>
+                <span class="module-badge-plan">规划中</span>
+            </button>
+        </nav>
+
+        <!-- ==================== 板块1: 异动监控与推演沙盘 (当前独立业务板块) ==================== -->
+        <div class="module-pane active" id="module-anomaly">
 
         <!-- 控制栏 -->
         <div class="control-panel">
@@ -542,9 +579,80 @@ HTML_PAGE = """<!DOCTYPE html>
                 <tbody id="historyTbody"></tbody>
             </table>
         </div>
+        </div><!-- ==================== /板块1: 异动监控与推演沙盘 ==================== -->
+
+        <!-- ==================== 板块2: 主力筹码与盘口监测 (预留扩展位) ==================== -->
+        <div class="module-pane" id="module-chips">
+            <div class="module-placeholder-box">
+                <div class="placeholder-icon">💼</div>
+                <div class="placeholder-title">主力筹码与盘口监测板块</div>
+                <div class="placeholder-desc">该板块已预留扩展接口。未来将提供筹码分布峰值、主力大单净流入追踪、分时量比突异、盘口挂单博弈等全维度盘口监控功能。</div>
+                <button class="btn btn-secondary" onclick="switchModule('anomaly')" style="display: inline-flex; margin: 0 auto;">← 返回异动推演沙盘</button>
+            </div>
+        </div>
+
+        <!-- ==================== 板块3: 题材梯队与连板效应 (预留扩展位) ==================== -->
+        <div class="module-pane" id="module-themes">
+            <div class="module-placeholder-box">
+                <div class="placeholder-icon">🔥</div>
+                <div class="placeholder-title">题材梯队与连板效应板块</div>
+                <div class="placeholder-desc">该板块已预留扩展接口。未来将提供市场短线情绪周期、连板梯队天梯榜、题材主线热度扩散矩阵与首板/接力晋级率测算。</div>
+                <button class="btn btn-secondary" onclick="switchModule('anomaly')" style="display: inline-flex; margin: 0 auto;">← 返回异动推演沙盘</button>
+            </div>
+        </div>
+
+        <!-- ==================== 板块4: 策略回测与预警中心 (预留扩展位) ==================== -->
+        <div class="module-pane" id="module-backtest">
+            <div class="module-placeholder-box">
+                <div class="placeholder-icon">⚙️</div>
+                <div class="placeholder-title">策略回测与预警中心板块</div>
+                <div class="placeholder-desc">该板块已预留扩展接口。未来将支持基于异动卡位规则的历史战法回测、全市场实时异动触发声光预警推送及自定义飞书/微信机器人Webhook对接。</div>
+                <button class="btn btn-secondary" onclick="switchModule('anomaly')" style="display: inline-flex; margin: 0 auto;">← 返回异动推演沙盘</button>
+            </div>
+        </div>
     </div>
 
     <script>
+        // 🗂️ 页面多板块切换控制与视图自适应
+        function switchModule(moduleId) {
+            const modules = ['anomaly', 'chips', 'themes', 'backtest'];
+            if (!modules.includes(moduleId)) {
+                moduleId = 'anomaly';
+            }
+            
+            modules.forEach(m => {
+                const tabBtn = document.getElementById(`tab-${m}`);
+                const pane = document.getElementById(`module-${m}`);
+                if (tabBtn) {
+                    if (m === moduleId) {
+                        tabBtn.classList.add('active');
+                    } else {
+                        tabBtn.classList.remove('active');
+                    }
+                }
+                if (pane) {
+                    if (m === moduleId) {
+                        pane.classList.add('active');
+                    } else {
+                        pane.classList.remove('active');
+                    }
+                }
+            });
+
+            try {
+                localStorage.setItem('stock_active_module', moduleId);
+            } catch (e) {}
+
+            // 若切回异动监控与沙盘推演板块，且K线图表已初始化，触发resize避免容器宽度折叠
+            if (moduleId === 'anomaly' && klineChartInstance) {
+                setTimeout(() => {
+                    if (klineChartInstance) {
+                        klineChartInstance.resize();
+                    }
+                }, 80);
+            }
+        }
+
         const BUILTIN_STOCKS = [
             { symbol: "000530", name: "冰山冷热", market: "深市主板" },
             { symbol: "300059", name: "东方财富", market: "创业板" },
@@ -726,7 +834,7 @@ HTML_PAGE = """<!DOCTYPE html>
             }
 
             // 若用户输入中文名称，尝试自动匹配对应代码
-            if (!/^\d{6}$/.test(code)) {
+            if (!/^[0-9]{6}$/.test(code)) {
                 const allList = [...getHistoryList(), ...BUILTIN_STOCKS];
                 const found = allList.find(s => s.name === code || s.name.includes(code));
                 if (found) {
@@ -1426,6 +1534,14 @@ HTML_PAGE = """<!DOCTYPE html>
         }
 
         window.onload = () => {
+            // 恢复上次浏览的业务板块 (默认异动推演沙盘板块)
+            try {
+                const savedModule = localStorage.getItem('stock_active_module') || 'anomaly';
+                switchModule(savedModule);
+            } catch (e) {
+                switchModule('anomaly');
+            }
+
             // 恢复上次选择的基准口径 (默认炒股软件口径)
             try {
                 const savedMode = localStorage.getItem('stock_base_mode');
