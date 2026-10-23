@@ -6,6 +6,7 @@ import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datasource import DataSource
 from calculator import AnomalyCalculator
+from theme_sentiment import ThemeSentimentEngine
 from dataclasses import asdict
 
 HTML_PAGE = """<!DOCTYPE html>
@@ -103,6 +104,49 @@ HTML_PAGE = """<!DOCTYPE html>
         .placeholder-icon { font-size: 46px; margin-bottom: 16px; display: inline-block; }
         .placeholder-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px; }
         .placeholder-desc { font-size: 14px; color: var(--text-secondary); max-width: 560px; margin: 0 auto 24px auto; line-height: 1.6; }
+
+        /* 🔥 题材梯队与连板效应、断板亏钱效应样式 */
+        .sentiment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .sentiment-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; transition: all 0.2s; position: relative; overflow: hidden; }
+        .sentiment-card:hover { border-color: rgba(56, 189, 248, 0.4); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+        .sentiment-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .sentiment-card-title { font-size: 13px; color: var(--text-secondary); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .sentiment-val-main { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.1; margin-bottom: 6px; }
+        .sentiment-sub-items { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+        .sentiment-sub-items b { color: #f8fafc; font-weight: 600; }
+
+        .sentiment-compass-box { background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+        .compass-score-wrapper { display: flex; align-items: center; gap: 18px; }
+        .compass-score-circle { width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle, rgba(56, 189, 248, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%); border: 3px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; color: #38bdf8; }
+        .compass-score-val { font-size: 22px; line-height: 1; }
+        .compass-score-unit { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+        .compass-cycle-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 700; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); margin-bottom: 6px; }
+        .compass-advice-text { font-size: 13px; color: #cbd5e1; max-width: 720px; line-height: 1.6; }
+
+        .loss-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .loss-summary-card { background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+        .loss-summary-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+        .loss-summary-val { font-size: 20px; font-weight: 800; }
+
+        .ladder-pyramid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .ladder-tier { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .ladder-tier-label { min-width: 90px; font-size: 13px; font-weight: 700; color: #fbbf24; display: flex; align-items: center; gap: 6px; }
+        .ladder-tier-stocks { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+        .ladder-stock-pill { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.15s; }
+        .ladder-stock-pill:hover { border-color: #38bdf8; background: #24344d; transform: translateY(-1px); }
+
+        .themes-matrix-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 24px; }
+        .theme-cluster-card { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+        .theme-cluster-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; }
+        .theme-cluster-title { font-size: 14px; font-weight: 700; color: #fff; }
+        .theme-cluster-leader { font-size: 12px; color: #fbbf24; }
+        .theme-stock-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+        .theme-mini-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); color: #cbd5e1; cursor: pointer; }
+        .theme-mini-tag:hover { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+
+        .badge-tag-slump { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-tag-rebound { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-tag-neutral { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25); padding: 3px 8px; border-radius: 4px; font-size: 11px; }
 
         /* 🎮 沙盘推演样式 */
         .sandtable-box { background: linear-gradient(180deg, #131c2e 0%, #0d1525 100%); border: 1px solid #293d66; border-radius: 12px; padding: 22px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.35); }
@@ -241,7 +285,7 @@ HTML_PAGE = """<!DOCTYPE html>
             </button>
             <button class="module-tab-btn" id="tab-themes" onclick="switchModule('themes')">
                 <span>🔥 题材梯队与连板效应</span>
-                <span class="module-badge-plan">规划中</span>
+                <span style="font-size: 10px; background: rgba(244, 63, 94, 0.2); color: #f43f5e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">NEW 连板断板回测</span>
             </button>
             <button class="module-tab-btn" id="tab-backtest" onclick="switchModule('backtest')">
                 <span>⚙️ 策略回测与预警中心</span>
@@ -591,15 +635,241 @@ HTML_PAGE = """<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- ==================== 板块3: 题材梯队与连板效应 (预留扩展位) ==================== -->
+        <!-- ==================== 板块3: 题材梯队与连板效应 (连板统计 & 断板亏钱效应回测) ==================== -->
         <div class="module-pane" id="module-themes">
-            <div class="module-placeholder-box">
-                <div class="placeholder-icon">🔥</div>
-                <div class="placeholder-title">题材梯队与连板效应板块</div>
-                <div class="placeholder-desc">该板块已预留扩展接口。未来将提供市场短线情绪周期、连板梯队天梯榜、题材主线热度扩散矩阵与首板/接力晋级率测算。</div>
-                <button class="btn btn-secondary" onclick="switchModule('anomaly')" style="display: inline-flex; margin: 0 auto;">← 返回异动推演沙盘</button>
+            <!-- 顶部控制栏与回测条件配置 -->
+            <div class="sandtable-box" style="margin-bottom: 20px;">
+                <div class="sandtable-header">
+                    <div>
+                        <div class="sandtable-title">🔥 题材梯队与连板效应 · 断板亏钱效应回测罗盘</div>
+                        <div class="sandtable-subtitle">连板天梯分布 | 题材热度扩散 | 连板断板亏钱效应量化回测 (T日大面、T+1竞价溢价与次日修复) | 超短六大核心情绪周期</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-primary" onclick="doQueryThemeSentiment()" id="btnQueryTheme">⚡ 刷新/开始回测</button>
+                    </div>
+                </div>
+
+                <div class="control-panel" style="margin-bottom: 0;">
+                    <div class="form-group">
+                        <label>基准复盘交易日 (支持历史穿梭复盘)</label>
+                        <select id="themeDateSelect" onchange="doQueryThemeSentiment()">
+                            <option value="">载入交易日历中...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>断板回测时间跨度 (交易日天数)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="themeDaysInput" value="5" min="1" max="30" style="flex: 1;" onchange="doQueryThemeSentiment()">
+                            <button type="button" class="kline-filter-btn active" id="btnDays5" onclick="setThemeDays(5)">近5日(1周)</button>
+                            <button type="button" class="kline-filter-btn" id="btnDays10" onclick="setThemeDays(10)">近10日(2周)</button>
+                            <button type="button" class="kline-filter-btn" id="btnDays20" onclick="setThemeDays(20)">近20日(1月)</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>断板高度筛选 (晋级失败阶段)</label>
+                        <select id="themeHeightSelect" onchange="doQueryThemeSentiment()">
+                            <option value="all">⚡ 全部连板断板 (2板及以上)</option>
+                            <option value="2_to_3">2进3 断板 (二板接力分水岭)</option>
+                            <option value="3_to_4" selected>🎯 3进4 断板 (中位股分歧核心)</option>
+                            <option value="4_to_5">4进5 断板 (中高标拓展期)</option>
+                            <option value="high_5_plus">5板及以上断板 (高标特停/核按钮)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            <!-- 超短情绪罗盘与情绪周期定性 -->
+            <div class="sentiment-compass-box" id="sentimentCompassBox">
+                <div class="compass-score-wrapper">
+                    <div class="compass-score-circle">
+                        <div class="compass-score-val" id="smScore">--</div>
+                        <div class="compass-score-unit">情绪分值</div>
+                    </div>
+                    <div>
+                        <div class="compass-cycle-badge" id="smCycleBadge">
+                            <span>🧭</span> <span id="smCycle">计算中...</span>
+                        </div>
+                        <div class="compass-advice-text" id="smAdvice">正在获取全市场超短打板情绪、梯队与亏钱效应数据...</div>
+                    </div>
+                </div>
+                <div style="text-align: right; font-size: 12px; color: var(--text-secondary);">
+                    <div>市场空间板: <b style="color: #fbbf24; font-size: 15px;" id="smMaxHeightStock">--</b></div>
+                    <div style="margin-top: 4px;">连板家数: <b style="color: #38bdf8;" id="smLadderCount">--</b> 家 / 首板: <b style="color: #cbd5e1;" id="smFirstCount">--</b> 家</div>
+                </div>
+            </div>
+
+            <!-- 超短线六大核心专业情绪指标卡片 -->
+            <div class="sentiment-grid">
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">🏆 空间高度与梯队广度</div>
+                        <span class="badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">高度压制</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardMaxHeight">-- 板</div>
+                    <div class="sentiment-sub-items">
+                        <span>最高龙头: <b id="cardMaxLeader" style="color: #fbbf24;">--</b></span>
+                        <span>连板家数: <b id="cardLadderTotal">--</b></span>
+                        <span>涨停总数: <b id="cardZtTotal">--</b></span>
+                    </div>
+                </div>
+
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">🪜 梯队晋级率矩阵</div>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">接力意愿</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardPromSummary">--%</div>
+                    <div class="sentiment-sub-items">
+                        <span>1进2: <b id="cardProm12">--%</b></span>
+                        <span>2进3: <b id="cardProm23">--%</b></span>
+                        <span>3进4: <b id="cardProm34">--%</b></span>
+                        <span>高位(4+): <b id="cardPromHigh">--%</b></span>
+                    </div>
+                </div>
+
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">⚠️ 炸板率与分歧警报</div>
+                        <span class="badge" id="cardBreakBadge" style="background: rgba(244, 63, 94, 0.15); color: #f43f5e;">分歧监测</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardBreakRate">--%</div>
+                    <div class="sentiment-sub-items">
+                        <span>封死涨停: <b id="cardZtCount" style="color: #10b981;">--</b> 家</span>
+                        <span>触板炸板: <b id="cardZbCount" style="color: #f43f5e;">--</b> 家</span>
+                        <span>炸板风险: <b id="cardBreakLevel">正常</b></span>
+                    </div>
+                </div>
+
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">💰 昨涨停今日赚钱效应</div>
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">打板收益</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardYztReturn">--%</div>
+                    <div class="sentiment-sub-items">
+                        <span>昨涨停平均涨幅: <b id="cardYztAvg">--%</b></span>
+                        <span>今日上涨胜率: <b id="cardYztUpRate">--%</b></span>
+                    </div>
+                </div>
+
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">🩸 跌停家数与极端亏钱</div>
+                        <span class="badge" style="background: rgba(244, 63, 94, 0.15); color: #f43f5e;">恐慌指数</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardDtCount">-- 家</div>
+                    <div class="sentiment-sub-items">
+                        <span>跌停数量: <b id="cardDtNum" style="color: #f43f5e;">--</b> 家</span>
+                        <span>核按钮风偏: <b id="cardDtDesc">--</b></span>
+                    </div>
+                </div>
+
+                <div class="sentiment-card">
+                    <div class="sentiment-card-header">
+                        <div class="sentiment-card-title">🧭 超短综合情绪评分</div>
+                        <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;">多因子加权</span>
+                    </div>
+                    <div class="sentiment-val-main" id="cardScore">-- / 100</div>
+                    <div class="sentiment-sub-items">
+                        <span>所处周期: <b id="cardCycleText" style="color: #38bdf8;">--</b></span>
+                        <span>短线做多安全度: <b id="cardSafetyText">--</b></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 💥 连板断板亏钱效应量化回测分析区 (核心诉求) -->
+            <div class="section-box" id="lossEffectSection">
+                <div class="section-title">
+                    <span>💥 连板断板亏钱效应量化回测分析 (<span id="lossFilterTitle">近5日 3进4断板</span>)</span>
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">统计连板冲击失败当日回撤幅度、次日(T+1)竞价溢价、次日收盘涨跌及隔日(T+2)修复表现</span>
+                </div>
+
+                <!-- 亏钱效应汇总指标 -->
+                <div class="loss-summary-grid">
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">🎯 断板样本总数</div>
+                        <div class="loss-summary-val" id="lossTotalSamples">0 <span style="font-size: 13px; font-weight: normal;">只</span></div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">📉 断板日(T日)平均涨跌幅</div>
+                        <div class="loss-summary-val" id="lossT0AvgPct">0.00%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">💥 断板日炸板大面均值</div>
+                        <div class="loss-summary-val" id="lossT0AvgDrop" style="color: #f43f5e;">0.00%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">🩸 断板日收阴率 / 跌停率</div>
+                        <div class="loss-summary-val" id="lossT0NegRate">0.0% / 0.0%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">🌅 次日(T+1)竞价平均溢价</div>
+                        <div class="loss-summary-val" id="lossT1AvgGap">0.00%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">💔 次日(T+1)收盘平均涨跌</div>
+                        <div class="loss-summary-val" id="lossT1AvgClose">0.00%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">🩹 次日大面率 vs 反包率</div>
+                        <div class="loss-summary-val" id="lossT1SlumpVsRebound">0.0% vs 0.0%</div>
+                    </div>
+                    <div class="loss-summary-card">
+                        <div class="loss-summary-title">📊 断板后2日累积收益率</div>
+                        <div class="loss-summary-val" id="lossCum2dAvg">0.00%</div>
+                    </div>
+                </div>
+
+                <!-- 断板明细流水表 -->
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>股票代码 / 名称</th>
+                                <th>所属题材概念</th>
+                                <th>断板阶段</th>
+                                <th>断板交易日 (T日)</th>
+                                <th>断板日收盘涨跌</th>
+                                <th>断板日大面幅(%)</th>
+                                <th>断板日振幅</th>
+                                <th>T+1日竞价溢价</th>
+                                <th>T+1日收盘涨跌</th>
+                                <th>T+2日累积表现</th>
+                                <th>情绪分类标签</th>
+                                <th>快捷联动</th>
+                            </tr>
+                        </thead>
+                        <tbody id="brokenBoardTbody">
+                            <tr>
+                                <td colspan="12" style="text-align: center; color: var(--text-secondary); padding: 24px;">点击「⚡ 刷新/开始回测」载入断板亏钱效应数据</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 🪜 连板梯队天梯榜 (Ladder Pyramid) -->
+            <div class="section-box">
+                <div class="section-title">
+                    <span>🪜 当日连板梯队天梯分布图 (<span id="ladderDateTitle">最新交易日</span>)</span>
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">按连板高度从高到低排列，清晰定位空间龙与梯队接力</span>
+                </div>
+                <div class="ladder-pyramid" id="ladderPyramidContainer">
+                    <div style="text-align: center; color: var(--text-secondary); padding: 20px;">载入梯队数据中...</div>
+                </div>
+            </div>
+
+            <!-- 🔥 题材主线热度分布 (Hot Themes Breakdown) -->
+            <div class="section-box">
+                <div class="section-title">
+                    <span>🔥 题材板块主线热度扩散矩阵</span>
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">按涨停梯队与涨停家数智能聚类，锁定全市场最具赚钱效应的做多主线</span>
+                </div>
+                <div class="themes-matrix-grid" id="themesMatrixContainer">
+                    <div style="text-align: center; color: var(--text-secondary); padding: 20px;">载入题材数据中...</div>
+                </div>
+            </div>
+        </div><!-- ==================== /板块3: 题材梯队与连板效应 ==================== -->
 
         <!-- ==================== 板块4: 策略回测与预警中心 (预留扩展位) ==================== -->
         <div class="module-pane" id="module-backtest">
@@ -650,6 +920,11 @@ HTML_PAGE = """<!DOCTYPE html>
                         klineChartInstance.resize();
                     }
                 }, 80);
+            }
+
+            // 若切换到题材梯队与连板效应板块，且尚未载入数据，自动触发查询
+            if (moduleId === 'themes' && !window._themeSentimentLoaded) {
+                doQueryThemeSentiment();
             }
         }
 
@@ -1533,6 +1808,312 @@ HTML_PAGE = """<!DOCTYPE html>
             doQuery();
         }
 
+        // ==================== 🔥 题材梯队与连板效应、断板亏钱效应回测前端逻辑 ====================
+        function setThemeDays(d) {
+            const input = document.getElementById('themeDaysInput');
+            if (input) input.value = d;
+            [5, 10, 20].forEach(n => {
+                const btn = document.getElementById(`btnDays${n}`);
+                if (btn) {
+                    if (n === d) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            });
+            doQueryThemeSentiment();
+        }
+
+        function jumpToAnomaly(code) {
+            if (!code) return;
+            switchModule('anomaly');
+            const input = document.getElementById('symbolInput');
+            if (input) {
+                input.value = code;
+                hideDropdown();
+                doQuery();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        async function doQueryThemeSentiment() {
+            const btn = document.getElementById('btnQueryTheme');
+            const originalText = btn ? btn.innerText : '';
+            if (btn) {
+                btn.innerText = '⚡ 回测测算中...';
+                btn.disabled = true;
+            }
+
+            const dateSel = document.getElementById('themeDateSelect');
+            const date = dateSel ? dateSel.value : '';
+            const daysInput = document.getElementById('themeDaysInput');
+            const days = daysInput ? daysInput.value : 5;
+            const heightSel = document.getElementById('themeHeightSelect');
+            const height = heightSel ? heightSel.value : 'all';
+
+            try {
+                const resp = await fetch(`/api/theme_sentiment?date=${encodeURIComponent(date)}&days=${days}&height=${height}`);
+                const data = await resp.json();
+                if (data.success) {
+                    window._themeSentimentLoaded = true;
+
+                    // 填充交易日选择列表 (若未初始化)
+                    if (dateSel && data.dates_list && dateSel.options.length <= 1) {
+                        dateSel.innerHTML = '';
+                        data.dates_list.forEach((d, idx) => {
+                            const opt = document.createElement('option');
+                            opt.value = d;
+                            const fmt = `${d.substring(0,4)}-${d.substring(4,6)}-${d.substring(6,8)}`;
+                            opt.innerText = idx === 0 ? `📅 ${fmt} (最新交易日)` : `📅 ${fmt}`;
+                            if (d === data.date) opt.selected = true;
+                            dateSel.appendChild(opt);
+                        });
+                    }
+
+                    renderSentimentDashboard(data.metrics, data.date);
+                    renderBrokenBoardTable(data.backtest, days, heightSel ? heightSel.options[heightSel.selectedIndex].text : '');
+                    renderLadderAndThemes(data.ladder, data.themes, data.date);
+                } else {
+                    alert('获取题材梯队与情绪数据失败: ' + (data.error || '未知错误'));
+                }
+            } catch (e) {
+                console.error('doQueryThemeSentiment error:', e);
+            } finally {
+                if (btn) {
+                    btn.innerText = originalText || '⚡ 刷新/开始回测';
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        function renderSentimentDashboard(m, date) {
+            if (!m) return;
+            document.getElementById('smScore').innerText = m.score;
+            document.getElementById('smCycle').innerText = m.cycle_phase;
+            document.getElementById('smAdvice').innerText = m.action_advice;
+            document.getElementById('smMaxHeightStock').innerText = m.max_height_stock;
+            document.getElementById('smLadderCount').innerText = m.ladder_total_count;
+            document.getElementById('smFirstCount').innerText = m.first_board_count;
+
+            const badge = document.getElementById('smCycleBadge');
+            if (badge) {
+                if (m.cycle_phase.includes('冰点')) {
+                    badge.style.borderColor = '#38bdf8';
+                    badge.style.background = 'rgba(56, 189, 248, 0.15)';
+                    badge.style.color = '#38bdf8';
+                } else if (m.cycle_phase.includes('启动')) {
+                    badge.style.borderColor = '#fbbf24';
+                    badge.style.background = 'rgba(251, 191, 36, 0.15)';
+                    badge.style.color = '#fbbf24';
+                } else if (m.cycle_phase.includes('主升')) {
+                    badge.style.borderColor = '#10b981';
+                    badge.style.background = 'rgba(16, 185, 129, 0.15)';
+                    badge.style.color = '#10b981';
+                } else if (m.cycle_phase.includes('高潮')) {
+                    badge.style.borderColor = '#a855f7';
+                    badge.style.background = 'rgba(168, 85, 247, 0.15)';
+                    badge.style.color = '#a855f7';
+                } else {
+                    badge.style.borderColor = '#f43f5e';
+                    badge.style.background = 'rgba(244, 63, 94, 0.15)';
+                    badge.style.color = '#f43f5e';
+                }
+            }
+
+            // 6大卡片
+            document.getElementById('cardMaxHeight').innerText = `${m.max_height} 板`;
+            document.getElementById('cardMaxLeader').innerText = m.max_height_stock;
+            document.getElementById('cardLadderTotal').innerText = `${m.ladder_total_count} 只`;
+            document.getElementById('cardZtTotal').innerText = `${m.limit_up_count} 只`;
+
+            document.getElementById('cardPromSummary').innerText = `${m.promotion_1_to_2}%`;
+            document.getElementById('cardProm12').innerText = `${m.promotion_1_to_2}%`;
+            document.getElementById('cardProm23').innerText = `${m.promotion_2_to_3}%`;
+            document.getElementById('cardProm34').innerText = `${m.promotion_3_to_4}%`;
+            document.getElementById('cardPromHigh').innerText = `${m.promotion_high}%`;
+
+            document.getElementById('cardBreakRate').innerText = `${m.break_rate}%`;
+            document.getElementById('cardZtCount').innerText = m.limit_up_count;
+            document.getElementById('cardZbCount').innerText = m.break_count;
+
+            const breakLevel = m.break_rate > 28 ? '高风险退潮 ⚠️' : (m.break_rate > 18 ? '分歧震荡 ⚖️' : '良性强势 🛡️');
+            document.getElementById('cardBreakLevel').innerText = breakLevel;
+
+            const sign = m.yzt_avg_return >= 0 ? '+' : '';
+            const yztColor = m.yzt_avg_return >= 0 ? 'var(--red)' : 'var(--green)';
+            const yztElem = document.getElementById('cardYztReturn');
+            yztElem.innerText = `${sign}${m.yzt_avg_return}%`;
+            yztElem.style.color = yztColor;
+            document.getElementById('cardYztAvg').innerText = `${sign}${m.yzt_avg_return}%`;
+            document.getElementById('cardYztUpRate').innerText = `${m.yzt_up_rate}%`;
+
+            document.getElementById('cardDtCount').innerText = `${m.limit_down_count} 家`;
+            document.getElementById('cardDtNum').innerText = m.limit_down_count;
+            document.getElementById('cardDtDesc').innerText = m.limit_down_count > 10 ? '恐慌核按钮蔓延' : (m.limit_down_count > 3 ? '局部个股补跌' : '情绪可控');
+
+            document.getElementById('cardScore').innerText = `${m.score} / 100`;
+            document.getElementById('cardCycleText').innerText = m.cycle_phase;
+            document.getElementById('cardSafetyText').innerText = m.score >= 50 ? '做多窗口期' : '防守防核期';
+        }
+
+        function renderBrokenBoardTable(backtest, days, heightText) {
+            const filterTitle = document.getElementById('lossFilterTitle');
+            if (filterTitle) {
+                filterTitle.innerText = `近 ${days} 个交易日 · ${heightText}`;
+            }
+
+            const s = backtest.summary || {};
+            document.getElementById('lossTotalSamples').innerHTML = `${s.total_samples || 0} <span style="font-size:13px; font-weight:normal;">只</span>`;
+
+            const t0AvgElem = document.getElementById('lossT0AvgPct');
+            const t0Sign = (s.t0_avg_pct || 0) >= 0 ? '+' : '';
+            t0AvgElem.innerText = `${t0Sign}${(s.t0_avg_pct || 0).toFixed(2)}%`;
+            t0AvgElem.style.color = (s.t0_avg_pct || 0) >= 0 ? 'var(--red)' : 'var(--green)';
+
+            document.getElementById('lossT0AvgDrop').innerText = `${(s.t0_avg_drop_from_high || 0).toFixed(2)}%`;
+            document.getElementById('lossT0NegRate').innerText = `${(s.t0_negative_rate || 0).toFixed(1)}% / ${(s.t0_limit_down_rate || 0).toFixed(1)}%`;
+
+            const t1GapElem = document.getElementById('lossT1AvgGap');
+            const t1GapSign = (s.t1_avg_open_gap || 0) >= 0 ? '+' : '';
+            t1GapElem.innerText = `${t1GapSign}${(s.t1_avg_open_gap || 0).toFixed(2)}%`;
+            t1GapElem.style.color = (s.t1_avg_open_gap || 0) >= 0 ? 'var(--red)' : 'var(--green)';
+
+            const t1CloseElem = document.getElementById('lossT1AvgClose');
+            const t1CloseSign = (s.t1_avg_close_pct || 0) >= 0 ? '+' : '';
+            t1CloseElem.innerText = `${t1CloseSign}${(s.t1_avg_close_pct || 0).toFixed(2)}%`;
+            t1CloseElem.style.color = (s.t1_avg_close_pct || 0) >= 0 ? 'var(--red)' : 'var(--green)';
+
+            document.getElementById('lossT1SlumpVsRebound').innerHTML = `<b style="color:var(--red);">${(s.t1_slump_rate || 0).toFixed(1)}%</b> vs <b style="color:var(--green);">${(s.t1_rebound_rate || 0).toFixed(1)}%</b>`;
+
+            const cumElem = document.getElementById('lossCum2dAvg');
+            const cumSign = (s.cum_2d_avg_return || 0) >= 0 ? '+' : '';
+            cumElem.innerText = `${cumSign}${(s.cum_2d_avg_return || 0).toFixed(2)}%`;
+            cumElem.style.color = (s.cum_2d_avg_return || 0) >= 0 ? 'var(--red)' : 'var(--green)';
+
+            // 渲染表格
+            const tbody = document.getElementById('brokenBoardTbody');
+            if (!tbody) return;
+
+            const list = backtest.details || [];
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-secondary); padding: 24px;">所选时间范围和高度下暂无断板样本</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(item => {
+                const t0Color = item.t0_pct_change >= 0 ? 'var(--red)' : 'var(--green)';
+                const t0Sign = item.t0_pct_change >= 0 ? '+' : '';
+
+                const t1GapColor = item.t1_open_gap !== null ? (item.t1_open_gap >= 0 ? 'var(--red)' : 'var(--green)') : 'inherit';
+                const t1GapStr = item.t1_open_gap !== null ? `${item.t1_open_gap >= 0 ? '+' : ''}${item.t1_open_gap.toFixed(2)}%` : '<span style="color:#64748b;">待开盘</span>';
+
+                const t1CloseColor = item.t1_close_pct !== null ? (item.t1_close_pct >= 0 ? 'var(--red)' : 'var(--green)') : 'inherit';
+                const t1CloseStr = item.t1_close_pct !== null ? `${item.t1_close_pct >= 0 ? '+' : ''}${item.t1_close_pct.toFixed(2)}%` : '<span style="color:#64748b;">待确认</span>';
+
+                const cumColor = item.cum_return_2d !== null ? (item.cum_return_2d >= 0 ? 'var(--red)' : 'var(--green)') : 'inherit';
+                const cumStr = item.cum_return_2d !== null ? `${item.cum_return_2d >= 0 ? '+' : ''}${item.cum_return_2d.toFixed(2)}%` : '<span style="color:#64748b;">-</span>';
+
+                let tagClass = 'badge-tag-neutral';
+                if (item.sentiment_tag.includes('反包')) tagClass = 'badge-tag-rebound';
+                else if (item.sentiment_tag.includes('核按钮') || item.sentiment_tag.includes('大面')) tagClass = 'badge-tag-slump';
+
+                const fmtDate = `${item.break_date.substring(0,4)}-${item.break_date.substring(4,6)}-${item.break_date.substring(6,8)}`;
+
+                return `
+                    <tr>
+                        <td>
+                            <strong style="color: #38bdf8; cursor: pointer;" onclick="jumpToAnomaly('${item.code}')">${item.name}</strong>
+                            <div style="font-size: 11px; color: var(--text-secondary);">${item.code}</div>
+                        </td>
+                        <td><span style="color: #cbd5e1;">${item.theme}</span></td>
+                        <td><span class="badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24; font-weight: 600;">${item.stage}</span></td>
+                        <td>${fmtDate}</td>
+                        <td style="color: ${t0Color}; font-weight: 700;">${t0Sign}${item.t0_pct_change.toFixed(2)}%</td>
+                        <td style="color: #f43f5e; font-weight: 700;">${item.t0_drop_from_high.toFixed(2)}%</td>
+                        <td>${item.t0_amplitude.toFixed(2)}%</td>
+                        <td style="color: ${t1GapColor}; font-weight: 600;">${t1GapStr}</td>
+                        <td style="color: ${t1CloseColor}; font-weight: 700;">${t1CloseStr}</td>
+                        <td style="color: ${cumColor}; font-weight: 600;">${cumStr}</td>
+                        <td><span class="${tagClass}">${item.sentiment_tag}</span></td>
+                        <td>
+                            <button class="kline-filter-btn" style="font-size: 11px; padding: 2px 8px;" onclick="jumpToAnomaly('${item.code}')">⚡ 测算异动</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderLadderAndThemes(ladder, themes, date) {
+            const dateTitle = document.getElementById('ladderDateTitle');
+            if (dateTitle && date) {
+                const fmt = `${date.substring(0,4)}-${date.substring(4,6)}-${date.substring(6,8)}`;
+                dateTitle.innerText = fmt;
+            }
+
+            // 渲染连板天梯
+            const ladderContainer = document.getElementById('ladderPyramidContainer');
+            if (ladderContainer) {
+                const keys = Object.keys(ladder || {}).map(k => parseInt(k)).sort((a, b) => b - a);
+                if (keys.length === 0) {
+                    ladderContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">当日暂无连板股票</div>';
+                } else {
+                    ladderContainer.innerHTML = keys.map(level => {
+                        const stocks = ladder[level] || [];
+                        let levelIcon = '📦';
+                        let levelColor = '#cbd5e1';
+                        if (level >= 5) { levelIcon = '👑'; levelColor = '#fbbf24'; }
+                        else if (level >= 3) { levelIcon = '🔥'; levelColor = '#f43f5e'; }
+                        else if (level === 2) { levelIcon = '🌱'; levelColor = '#38bdf8'; }
+
+                        const pills = stocks.map(s => `
+                            <div class="ladder-stock-pill" onclick="jumpToAnomaly('${s.code}')" title="点击立即跳转测算 ${s.name} 异动沙盘">
+                                <b>${s.name}</b>
+                                <span style="color: #64748b; font-size: 11px;">${s.code}</span>
+                                <span style="color: #38bdf8; font-size: 11px;">${s.theme}</span>
+                                <span style="color: #10b981; font-size: 11px;">封${s.fund}万</span>
+                                <span style="color: #cbd5e1; font-size: 11px;">换${s.turnover_rate}%</span>
+                            </div>
+                        `).join('');
+
+                        return `
+                            <div class="ladder-tier">
+                                <div class="ladder-tier-label" style="color: ${levelColor};">
+                                    <span>${levelIcon}</span>
+                                    <span>${level === 1 ? '首板' : `${level} 连板`} (${stocks.length}只)</span>
+                                </div>
+                                <div class="ladder-tier-stocks">${pills}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // 渲染题材主线矩阵
+            const themesContainer = document.getElementById('themesMatrixContainer');
+            if (themesContainer) {
+                const list = (themes || []).slice(0, 12);
+                if (list.length === 0) {
+                    themesContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">暂无主线题材数据</div>';
+                } else {
+                    themesContainer.innerHTML = list.map(t => {
+                        const tags = (t.stocks || []).map(s => `
+                            <span class="theme-mini-tag" onclick="jumpToAnomaly('${s.code}')" title="点击立即跳转测算异动">
+                                ${s.name} ${s.lbc > 1 ? `(${s.lbc}板)` : ''}
+                            </span>
+                        `).join('');
+
+                        return `
+                            <div class="theme-cluster-card">
+                                <div class="theme-cluster-header">
+                                    <div class="theme-cluster-title">${t.theme_name} <span style="color: #38bdf8; font-size: 12px;">(${t.count}只涨停)</span></div>
+                                    <div class="theme-cluster-leader">龙头: <b>${t.leader_name}</b> (${t.leader_lbc}板)</div>
+                                </div>
+                                <div class="theme-stock-tags">${tags}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
         window.onload = () => {
             // 恢复上次浏览的业务板块 (默认异动推演沙盘板块)
             try {
@@ -1651,6 +2232,52 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                     "success": True,
                     "is_mock": is_mock,
                     "report": asdict(report)
+                }
+            except Exception as e:
+                payload = {
+                    "success": False,
+                    "error": str(e)
+                }
+
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        elif path == "/api/theme_sentiment":
+            date_param = query.get("date", [""])[0].strip()
+            days_str = query.get("days", ["5"])[0].strip()
+            height_param = query.get("height", ["all"])[0].strip()
+
+            try:
+                days = int(days_str)
+            except ValueError:
+                days = 5
+            days = max(1, min(30, days))
+
+            try:
+                trading_dates = ThemeSentimentEngine.get_trading_dates(30)
+                selected_date = date_param if (date_param and date_param in trading_dates) else (trading_dates[0] if trading_dates else "20261023")
+
+                metrics = ThemeSentimentEngine.get_sentiment_metrics(selected_date)
+                ladder_groups, theme_clusters = ThemeSentimentEngine.get_ladder_and_themes(selected_date)
+                backtest_data = ThemeSentimentEngine.get_broken_board_backtest(
+                    days=days,
+                    target_height=height_param,
+                    ref_date=selected_date
+                )
+
+                payload = {
+                    "success": True,
+                    "date": selected_date,
+                    "dates_list": trading_dates,
+                    "metrics": metrics,
+                    "ladder": ladder_groups,
+                    "themes": theme_clusters,
+                    "backtest": backtest_data
                 }
             except Exception as e:
                 payload = {
