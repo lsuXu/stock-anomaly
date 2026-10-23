@@ -3,7 +3,7 @@ A股异动监控系统 - 数据模型与类型定义
 """
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class MarketType(Enum):
     SH_MAIN = "SH_MAIN"      # 沪市主板 (600, 601, 603, 605)
@@ -58,6 +58,41 @@ class FutureDayProjection:
     limit_up_price: float        # 若连续涨停的理论价格
     will_trigger_if_limit_up: bool # 若连续涨停是否会在该日首次触发异动
 
+# ==============================================================================
+# 🎮 沙盘推演模型 (What-If 控盘模拟 与 目标连板倒推)
+# ==============================================================================
+
+@dataclass
+class WhatIfDayStep:
+    day_index: int               # 未来第几天 (1: 明日, 2: 后天...)
+    date_label: str              # 标签 (如 "明日 (T+1)")
+    base_date: str               # 该日10日窗口对应的基期日期
+    base_price: float            # 基期股票收盘价 (P0)
+    crit_price: float            # 该日10日严重异动临界收盘价 (元)
+    streak_limit_up_price: float # 若连续涨停的收盘价 (元)
+    can_limit_up: bool           # 该日能否涨停而不吃10日严重异动
+    max_allowed_rise_pct: float  # 相对于前一日的最大允许涨幅 (%)
+    buffer_margin_pct: float     # 涨停价距离临界价的缓冲安全边际 (%) (正数表示安全，负数表示超额)
+
+@dataclass
+class ReverseLimitUpPlan:
+    target_streak_days: int      # 目标连续涨停天数 (如 1天, 2天, 3天...)
+    max_today_price: float       # 今日最高允许收盘价 (元)
+    max_today_rise_pct: float    # 今日最高允许涨幅 (%)
+    is_achievable: bool          # 是否可以通过控盘达成 (跌停板以内可控)
+    level_type: str              # "safe" (安全正涨幅), "pressure" (需压盘收绿), "impossible" (无法达成)
+    action_advice: str           # 控盘建议结论
+    bottleneck_day: int          # 导致受限的瓶颈交易日 (0表示今日受限, 1..N表示未来某天)
+    bottleneck_desc: str         # 瓶颈原因说明
+
+@dataclass
+class SandtableSimulation:
+    assumed_today_rise_pct: float  # 当前推演设定的今日收盘涨幅 (%)
+    assumed_today_price: float     # 对应的今日收盘模拟价 (元)
+    what_if_steps: List[WhatIfDayStep] # 基于假设今日涨幅推演出的未来逐日走势
+    reverse_plans: List[ReverseLimitUpPlan] # 目标未来连续涨停倒推矩阵
+    max_sustainable_streak_days: int # 极限跌停控盘下最多能维持连续涨停几天
+
 @dataclass
 class AnomalyAnalysisReport:
     symbol: str
@@ -89,5 +124,8 @@ class AnomalyAnalysisReport:
     future_projections: List[FutureDayProjection]
     history_bars: List[Dict[str, Any]]
     
-    # 完整K线数据 (供给前端K线图表直接渲染，支持300天/60天切换)
+    # 完整K线数据 (供给前端K线图表直接渲染)
     kline_chart_data: List[Dict[str, Any]]
+
+    # 🎮 异动推演沙盘
+    sandtable: Optional[SandtableSimulation] = None

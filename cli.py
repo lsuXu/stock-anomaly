@@ -70,8 +70,47 @@ def render_report_cli(report: AnomalyAnalysisReport, is_mock: bool):
 
     print_separator("-")
 
-    # 3. 最近交易日走势与基准偏离明细
-    print(" 【三、近期历史走势与基准偏离明细】")
+    # 3. 🎮 异动推演沙盘 (主力控盘与连板推演)
+    if report.sandtable:
+        st = report.sandtable
+        target_name = "今日" if report.is_intraday else "下一交易日"
+        print(f" 【三、🎮 异动推演沙盘 (主力控盘与连板空间推演)】")
+        print(f" 🔹 推演 A: 假设{target_name}收盘涨幅控制在 [{st.assumed_today_rise_pct:+.2f}%] (对应收盘价: {st.assumed_today_price:.2f}元):")
+        sand_header = "{:<14} {:<12} {:<12} {:<14} {:<16} {:<16}"
+        print("  " + sand_header.format("预测交易日", "10日临界价", "若涨停收盘", "能否涨停", "单日允许最大涨幅", "涨停安全缓冲边际"))
+        print("  " + "-" * 90)
+        for s in st.what_if_steps:
+            can_up_str = "✅ 可以涨停" if s.can_limit_up else "❌ 触碰异动"
+            buf_str = f"{s.buffer_margin_pct:+.2f}%"
+            print("  " + sand_header.format(
+                s.date_label,
+                f"{s.crit_price:.2f}元",
+                f"{s.streak_limit_up_price:.2f}元",
+                can_up_str,
+                f"{s.max_allowed_rise_pct:+.2f}%",
+                buf_str
+            ))
+        print()
+        print(f" 🔹 推演 B: 目标连板倒推矩阵 (若想未来连续 N 天涨停，{target_name}最高允许收盘价与涨幅):")
+        rev_header = "{:<12} {:<18} {:<18} {:<16} {:<24}"
+        print("  " + rev_header.format("目标连板天数", f"{target_name}最高允许价", f"{target_name}允许涨幅红线", "达成可行性", "控盘建议/瓶颈说明"))
+        print("  " + "-" * 90)
+        for p in st.reverse_plans:
+            achieve_str = "🟢 可达成" if p.is_achievable else "🔴 无法达成"
+            p_str = f"≤ {p.max_today_price:.2f}元"
+            r_str = f"≤ {p.max_today_rise_pct:+.2f}%"
+            print("  " + rev_header.format(
+                f"未来{p.target_streak_days}连板",
+                p_str,
+                r_str,
+                achieve_str,
+                p.action_advice[:28] + ("..." if len(p.action_advice) > 28 else "")
+            ))
+        print(f"  💡 极限连板结论: 在跌停板以内极限控盘下，未来最多可维持【连续 {st.max_sustainable_streak_days} 天涨停】。")
+        print_separator("-")
+
+    # 4. 最近交易日走势与基准偏离明细
+    print(" 【四、近期历史走势与基准偏离明细】")
     hist_header = "{:<16} {:<12} {:<12} {:<14} {:<14} {:<12}"
     print(hist_header.format("交易日期", "股票价格", "股票涨跌幅", f"{report.benchmark_name}点位", "基准涨跌幅", "单日偏离值"))
     print("-" * 96)
@@ -93,6 +132,7 @@ def main():
     parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数涨跌幅")
     parser.add_argument("--mode", "-m", type=str, default="auto", choices=["auto", "intraday", "post_market"], help="测算模式: auto, intraday, post_market")
     parser.add_argument("--base-mode", "-b", type=str, default="window_start", choices=["window_start", "pre_window"], help="基准口径: window_start (炒股软件口径，区间首日), pre_window (窗口前一日)")
+    parser.add_argument("--sim-rise", "-s", type=float, default=None, help="假设今日收盘涨跌幅 (%)，用于沙盘推演 (如 3.0 或 -2.0)")
 
     args = parser.parse_args()
 
@@ -114,7 +154,8 @@ def main():
             is_intraday=is_intraday,
             future_days=args.days,
             assume_index_change=args.assume_index,
-            base_mode=args.base_mode
+            base_mode=args.base_mode,
+            assumed_today_rise_pct=args.sim_rise
         )
         render_report_cli(report, is_mock)
     except Exception as e:

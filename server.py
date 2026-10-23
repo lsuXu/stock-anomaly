@@ -89,10 +89,47 @@ HTML_PAGE = """<!DOCTYPE html>
         .kline-filter-btn { background: #1c2842; border: 1px solid var(--border); color: #cbd5e1; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
         .kline-filter-btn:hover, .kline-filter-btn.active { background: #2563eb; color: #fff; border-color: #3b82f6; }
 
+        /* 🎮 沙盘推演样式 */
+        .sandtable-box { background: linear-gradient(180deg, #131c2e 0%, #0d1525 100%); border: 1px solid #293d66; border-radius: 12px; padding: 22px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.35); }
+        .sandtable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+        .sandtable-title { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+        .sandtable-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+        
+        .sandtable-subpanel { background: rgba(10, 16, 29, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 18px; }
+        .subpanel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .subpanel-title { font-size: 15px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; }
+        
+        .sim-slider-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }
+        .sim-slider-row label { font-size: 13px; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
+        .sim-slider-row input[type="range"] { flex: 1; min-width: 140px; accent-color: #38bdf8; cursor: pointer; }
+        .sim-val-display { font-size: 15px; font-weight: 700; color: #fff; background: #1a253c; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); min-width: 86px; text-align: center; }
+        .sim-price-display { font-size: 14px; color: var(--amber); font-weight: 600; margin-left: 6px; }
+
+        .sand-quick-btns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .sand-quick-btn { background: #1a253c; border: 1px solid var(--border); color: #cbd5e1; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+        .sand-quick-btn:hover { background: #2563eb; color: #fff; border-color: #3b82f6; }
+
+        .reverse-matrix-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 12px; }
+        .reverse-card { background: #0c1424; border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s, border-color 0.2s; }
+        .reverse-card:hover { transform: translateY(-2px); border-color: #38bdf8; }
+        .reverse-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .reverse-card-title { font-size: 14px; font-weight: 700; color: #f8fafc; }
+        .reverse-price-stat { font-size: 19px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+        .reverse-rise-stat { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+        .reverse-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
+
+        .badge-status-safe { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-status-control { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+        .badge-status-pressure { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-status-impossible { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); }
+
+        .streak-summary-banner { background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px 16px; margin-top: 14px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+
         @media (max-width: 900px) {
             .cards-grid { grid-template-columns: 1fr; }
             .control-panel { grid-template-columns: 1fr; }
             .meta-strip { grid-template-columns: 1fr 1fr; }
+            .reverse-matrix-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -245,6 +282,78 @@ HTML_PAGE = """<!DOCTYPE html>
                         <div style="font-size: 11px; color: var(--text-secondary);" id="baseDesc30d">基准起点: --</div>
                     </div>
                     <span id="status30d" class="status-safe">计算中...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🎮 异动推演沙盘 (主力控盘与连板推演) -->
+        <div class="sandtable-box" id="sandtableSection" style="display: none;">
+            <div class="sandtable-header">
+                <div>
+                    <div class="sandtable-title">
+                        <span>🎮 异动推演沙盘 (主力控盘与连板空间推演)</span>
+                        <span class="badge badge-live" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">量化沙盘</span>
+                    </div>
+                    <div class="sandtable-subtitle">模拟设定控盘涨跌幅对未来连板空间的影响，并倒推若想未来连续涨停，今日允许的最高涨幅红线</div>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary);">基于 10 日严重异动 (+100%) 监管红线</div>
+            </div>
+
+            <!-- 推演 A: 假设控盘逐日推演 -->
+            <div class="sandtable-subpanel">
+                <div class="subpanel-header">
+                    <span class="subpanel-title">🎯 推演 A: 假设收盘涨幅 (What-If 控盘空间推演)</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);" id="sandTargetDayLabel">假设今日收盘走势:</span>
+                </div>
+
+                <div class="sim-slider-row">
+                    <label id="simSliderLabel">设定今日收盘涨幅:</label>
+                    <input type="range" id="simSlider" min="-10.0" max="10.0" step="0.1" value="0.0" oninput="onSimSliderInput(this.value)">
+                    <div class="sim-val-display" id="simValDisplay">+0.00%</div>
+                    <div class="sim-price-display">对应模拟收盘价: <strong id="simPriceDisplay">-- 元</strong></div>
+                    <div class="sand-quick-btns">
+                        <span style="font-size: 11px; color: var(--text-secondary);">快速定盘:</span>
+                        <button class="sand-quick-btn" onclick="applySimRise('limit_down')">跌停板</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(-5.0)">-5.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(-2.0)">-2.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(0.0)">平盘 0.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(2.0)">+2.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(3.0)">+3.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise(4.0)">+4.0%</button>
+                        <button class="sand-quick-btn" onclick="applySimRise('limit_up')">涨停板</button>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>预测交易日</th>
+                            <th>基准基期 (10日首日)</th>
+                            <th>10日异动临界价</th>
+                            <th>若天天涨停价格</th>
+                            <th>能否连续涨停</th>
+                            <th>单日最大允许涨幅</th>
+                            <th>涨停安全边际空间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sandWhatIfTbody"></tbody>
+                </table>
+            </div>
+
+            <!-- 推演 B: 目标连板倒推矩阵 -->
+            <div class="sandtable-subpanel">
+                <div class="subpanel-header">
+                    <span class="subpanel-title">🧮 推演 B: 目标连续涨停倒推矩阵 (主力控盘红线)</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);">倒推若想未来连续涨停，今日最高允许涨多少</span>
+                </div>
+
+                <div class="reverse-matrix-grid" id="reverseMatrixGrid">
+                    <!-- 动态生成 1~5 连板卡片 -->
+                </div>
+
+                <div class="streak-summary-banner" id="streakSummaryBanner">
+                    <span id="streakSummaryText">💡 极限控盘推演加载中...</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);">*根据交易所偏离度累计规则，跌停板以外的价格在A股无法撮合成交</span>
                 </div>
             </div>
         </div>
@@ -432,6 +541,11 @@ HTML_PAGE = """<!DOCTYPE html>
             document.getElementById('cardsGrid').style.display = 'grid';
             document.getElementById('futureSection').style.display = 'block';
             document.getElementById('historySection').style.display = 'block';
+
+            currentReportData = r;
+            if (r.sandtable) {
+                renderSandtable(r.sandtable, r);
+            }
 
             // K线图表渲染
             if (r.kline_chart_data && r.kline_chart_data.length > 0) {
@@ -694,6 +808,162 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
+        let currentReportData = null;
+        let simDebounceTimer = null;
+
+        function renderSandtable(st, r) {
+            if (!st) return;
+            document.getElementById('sandtableSection').style.display = 'block';
+
+            const targetLabel = r.is_intraday ? "今日" : "下一交易日";
+            document.getElementById('sandTargetDayLabel').innerText = `假设${targetLabel}收盘走势推演:`;
+            document.getElementById('simSliderLabel').innerText = `设定${targetLabel}收盘涨幅:`;
+
+            const limit = r.price_limit_pct;
+            const slider = document.getElementById('simSlider');
+            slider.min = (-limit).toFixed(1);
+            slider.max = limit.toFixed(1);
+            slider.value = st.assumed_today_rise_pct;
+
+            updateSimDisplay(st.assumed_today_rise_pct, st.assumed_today_price);
+            renderWhatIfTable(st.what_if_steps);
+            renderReverseMatrix(st.reverse_plans, targetLabel);
+
+            const summaryElem = document.getElementById('streakSummaryText');
+            if (st.max_sustainable_streak_days > 0) {
+                summaryElem.innerHTML = `💡 <strong>控盘推演结论:</strong> 在跌停板(-${limit}%)以内极限控盘下，未来最多可维持【<strong>连续 ${st.max_sustainable_streak_days} 天涨停</strong>】；若想实现连续 ${st.max_sustainable_streak_days + 1} 连板在数学上不可能！`;
+            } else {
+                summaryElem.innerHTML = `💡 <strong>控盘推演结论:</strong> 即使${targetLabel}直接死死封死跌停(-${limit}%)，未来第 1 天涨停也无法避免严重异动！`;
+            }
+        }
+
+        function updateSimDisplay(pct, price) {
+            const sign = pct >= 0 ? '+' : '';
+            const color = pct >= 0 ? 'var(--red)' : 'var(--green)';
+            const valElem = document.getElementById('simValDisplay');
+            valElem.style.color = color;
+            valElem.innerText = `${sign}${Number(pct).toFixed(2)}%`;
+            document.getElementById('simPriceDisplay').innerText = `${Number(price).toFixed(2)} 元`;
+        }
+
+        function renderWhatIfTable(steps) {
+            const tbody = document.getElementById('sandWhatIfTbody');
+            tbody.innerHTML = '';
+            steps.forEach(s => {
+                const tr = document.createElement('tr');
+                const canUpBadge = s.can_limit_up 
+                    ? `<span class="badge" style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3);">✅ 可以涨停</span>`
+                    : `<span class="badge" style="background: rgba(244,63,94,0.15); color: #f43f5e; border: 1px solid rgba(244,63,94,0.3);">❌ 触碰异动</span>`;
+                
+                const bufColor = s.buffer_margin_pct >= 0 ? 'var(--green)' : 'var(--red)';
+                const bufSign = s.buffer_margin_pct >= 0 ? '+' : '';
+
+                tr.innerHTML = `
+                    <td><strong>${s.date_label}</strong></td>
+                    <td style="color: var(--text-secondary);">${s.base_date} (${s.base_price.toFixed(2)}元)</td>
+                    <td><strong style="color: var(--amber);">${s.crit_price.toFixed(2)} 元</strong></td>
+                    <td><strong>${s.streak_limit_up_price.toFixed(2)} 元</strong></td>
+                    <td>${canUpBadge}</td>
+                    <td class="val-rise">${s.max_allowed_rise_pct >= 0 ? '+' : ''}${s.max_allowed_rise_pct.toFixed(2)}%</td>
+                    <td style="color: ${bufColor}; font-weight: 700;">${bufSign}${s.buffer_margin_pct.toFixed(2)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderReverseMatrix(plans, targetLabel) {
+            const container = document.getElementById('reverseMatrixGrid');
+            container.innerHTML = '';
+            plans.forEach(p => {
+                let badgeClass = 'badge-status-safe';
+                let badgeText = '毫无法定压力';
+                let riseColor = 'var(--green)';
+
+                if (p.level_type === 'safe') {
+                    badgeClass = 'badge-status-safe';
+                    badgeText = '毫无压力 (涨停亦可)';
+                    riseColor = 'var(--green)';
+                } else if (p.level_type === 'control_green') {
+                    badgeClass = 'badge-status-control';
+                    badgeText = '可达成 (红盘控涨)';
+                    riseColor = 'var(--blue)';
+                } else if (p.level_type === 'pressure_red') {
+                    badgeClass = 'badge-status-pressure';
+                    badgeText = '须压盘收跌';
+                    riseColor = 'var(--amber)';
+                } else {
+                    badgeClass = 'badge-status-impossible';
+                    badgeText = '无法达成';
+                    riseColor = 'var(--red)';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'reverse-card';
+                card.innerHTML = `
+                    <div>
+                        <div class="reverse-card-head">
+                            <span class="reverse-card-title">🎯 目标 ${p.target_streak_days} 连板</span>
+                            <span class="badge ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 2px;">${targetLabel}最高允许价:</div>
+                        <div class="reverse-price-stat">≤ ${p.max_today_price.toFixed(2)} 元</div>
+                        <div class="reverse-rise-stat" style="color: ${riseColor};">
+                            ${targetLabel}允许涨幅: ≤ ${p.max_today_rise_pct >= 0 ? '+' : ''}${p.max_today_rise_pct.toFixed(2)}%
+                        </div>
+                        <div style="font-size: 12px; color: #cbd5e1; line-height: 1.4;">${p.action_advice}</div>
+                    </div>
+                    <div class="reverse-desc">
+                        ⚠️ 瓶颈说明: ${p.bottleneck_desc}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function onSimSliderInput(val) {
+            if (!currentReportData) return;
+            const pPrev = currentReportData.confirmed_close;
+            const price = pPrev * (1.0 + parseFloat(val) / 100.0);
+            updateSimDisplay(val, price);
+
+            clearTimeout(simDebounceTimer);
+            simDebounceTimer = setTimeout(() => {
+                fetchSimRise(val);
+            }, 180);
+        }
+
+        function applySimRise(val) {
+            if (!currentReportData) return;
+            let targetVal = val;
+            const limit = currentReportData.price_limit_pct;
+            if (val === 'limit_up') targetVal = limit;
+            else if (val === 'limit_down') targetVal = -limit;
+
+            document.getElementById('simSlider').value = targetVal;
+            const pPrev = currentReportData.confirmed_close;
+            const price = pPrev * (1.0 + parseFloat(targetVal) / 100.0);
+            updateSimDisplay(targetVal, price);
+            fetchSimRise(targetVal);
+        }
+
+        async function fetchSimRise(val) {
+            const code = document.getElementById('symbolInput').value.trim();
+            const days = document.getElementById('daysInput').value.trim() || 5;
+            const indexChg = document.getElementById('indexChgInput').value.trim() || 0.0;
+            const mode = document.getElementById('modeSelect').value;
+            const baseMode = document.getElementById('baseModeSelect').value;
+
+            try {
+                const resp = await fetch(`/api/calculate?code=${code}&days=${days}&assume_index=${indexChg}&mode=${mode}&base_mode=${baseMode}&sim_rise=${val}`);
+                const data = await resp.json();
+                if (data.success && data.report && data.report.sandtable) {
+                    renderWhatIfTable(data.report.sandtable.what_if_steps);
+                }
+            } catch (e) {
+                console.error("fetchSimRise failed:", e);
+            }
+        }
+
         window.onload = () => doQuery();
     </script>
 </body>
@@ -721,6 +991,13 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
             index_chg_str = query.get("assume_index", ["0.0"])[0]
             mode_param = query.get("mode", ["auto"])[0]
             base_mode = query.get("base_mode", ["window_start"])[0]
+            sim_rise_param = query.get("sim_rise", [None])[0]
+            sim_rise = None
+            if sim_rise_param is not None and sim_rise_param != "":
+                try:
+                    sim_rise = float(sim_rise_param)
+                except ValueError:
+                    sim_rise = None
 
             force_mode = None
             if mode_param == "intraday":
@@ -752,7 +1029,8 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                     is_intraday=is_intraday,
                     future_days=days,
                     assume_index_change=index_chg,
-                    base_mode=base_mode
+                    base_mode=base_mode,
+                    assumed_today_rise_pct=sim_rise
                 )
                 payload = {
                     "success": True,

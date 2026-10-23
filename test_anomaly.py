@@ -78,5 +78,36 @@ class TestAnomalyLogic(unittest.TestCase):
         self.assertEqual(result.base_stock_price, 10.0)
         self.assertEqual(result.crit_price, 12.0)
 
+    def test_sandtable_simulation(self):
+        """测试沙盘推演 (What-If 与 目标连板倒推矩阵)"""
+        # 构造15天平稳数据，基准收盘价均为 10.0
+        stock_klines = [KLineBar(f"2026-10-{i:02d}", 10.0, 10.0, 10.0, 10.0) for i in range(1, 20)]
+        index_klines = [KLineBar(f"2026-10-{i:02d}", 3000.0, 3000.0, 3000.0, 3000.0) for i in range(1, 20)]
+
+        st = AnomalyCalculator.calculate_sandtable(
+            confirmed_stock_klines=stock_klines,
+            confirmed_index_klines=index_klines,
+            confirmed_close=10.0,
+            realtime_price=10.3,
+            confirmed_index_close=3000.0,
+            realtime_index_price=3000.0,
+            price_limit_rate=0.10,
+            is_intraday=True,
+            base_mode="window_start",
+            assumed_today_rise_pct=3.0
+        )
+
+        self.assertEqual(st.assumed_today_rise_pct, 3.0)
+        self.assertEqual(st.assumed_today_price, 10.30)
+        self.assertEqual(len(st.what_if_steps), 5)
+        self.assertEqual(len(st.reverse_plans), 5)
+        self.assertTrue(st.max_sustainable_streak_days >= 1)
+
+        # 验证目标连板计划倒推属性
+        plan_1 = st.reverse_plans[0]
+        self.assertEqual(plan_1.target_streak_days, 1)
+        self.assertTrue(plan_1.is_achievable)
+        self.assertIsNotNone(plan_1.action_advice)
+
 if __name__ == "__main__":
     unittest.main()
