@@ -129,7 +129,7 @@ def main():
     parser = argparse.ArgumentParser(description="A股股票异动监控与未来推演测算工具")
     parser.add_argument("--code", "-c", type=str, default="300059", help="股票代码")
     parser.add_argument("--days", "-d", type=int, default=5, help="未来推演天数 (默认 5 天)")
-    parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数涨跌幅")
+    parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数日涨幅 (%, 输入 0.1 代表 +0.1%)")
     parser.add_argument("--mode", "-m", type=str, default="auto", choices=["auto", "intraday", "post_market"], help="测算模式: auto, intraday, post_market")
     parser.add_argument("--base-mode", "-b", type=str, default="window_start", choices=["window_start", "pre_window"], help="基准口径: window_start (炒股软件口径，区间首日), pre_window (窗口前一日)")
     parser.add_argument("--sim-rise", "-s", type=float, default=None, help="假设今日收盘涨跌幅 (%)，用于沙盘推演 (如 3.0 或 -2.0)")
@@ -153,7 +153,7 @@ def main():
             index_klines=index_klines,
             is_intraday=is_intraday,
             future_days=args.days,
-            assume_index_change=args.assume_index,
+            assume_index_change=args.assume_index / 100.0,
             base_mode=args.base_mode,
             assumed_today_rise_pct=args.sim_rise
         )

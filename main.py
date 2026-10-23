@@ -12,7 +12,7 @@ def main():
     parser.add_argument("--port", "-p", type=int, default=8080, help="Web 服务监听端口 (默认 8080)")
     parser.add_argument("--code", "-c", type=str, default=None, help="股票代码 (如 300059, 600519, 000001)")
     parser.add_argument("--days", "-d", type=int, default=5, help="未来推演天数 (默认 5 天)")
-    parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数涨跌幅")
+    parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数日涨幅 (%, 输入 0.1 代表 +0.1%)")
 
     args = parser.parse_args()
 

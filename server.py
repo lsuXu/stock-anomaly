@@ -227,8 +227,11 @@ HTML_PAGE = """<!DOCTYPE html>
                 <input type="number" id="daysInput" value="5" min="1" max="30">
             </div>
             <div class="form-group">
-                <label>假定未来指数日涨幅</label>
-                <input type="number" id="indexChgInput" value="0.0" step="0.005" placeholder="0.0为平盘">
+                <label>假定未来指数日涨幅 (%) <span style="font-size: 11px; color: var(--text-secondary); font-weight: normal;">(输入0.1即+0.1%)</span></label>
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="number" id="indexChgInput" value="0.0" step="0.1" placeholder="如 0.1 代表 +0.1%" onchange="doQuery()" style="padding-right: 28px;">
+                    <span style="position: absolute; right: 10px; font-size: 13px; color: var(--text-secondary); pointer-events: none;">%</span>
+                </div>
             </div>
             <div class="form-group">
                 <label>测算模式 (盘中/盘后切换)</label>
@@ -1504,9 +1507,12 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                 days = 5
 
             try:
-                index_chg = float(index_chg_str)
+                # 前端按百分比传入 (例如输入 0.1 代表 +0.1%)
+                index_chg_pct = float(index_chg_str)
             except ValueError:
-                index_chg = 0.0
+                index_chg_pct = 0.0
+
+            index_chg_ratio = index_chg_pct / 100.0
 
             try:
                 config, name, stock_klines, index_klines, is_intraday, is_mock = DataSource.get_stock_and_index_data(
@@ -1521,7 +1527,7 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                     index_klines=index_klines,
                     is_intraday=is_intraday,
                     future_days=days,
-                    assume_index_change=index_chg,
+                    assume_index_change=index_chg_ratio,
                     base_mode=base_mode,
                     assumed_today_rise_pct=sim_rise
                 )
