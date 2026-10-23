@@ -125,6 +125,60 @@ HTML_PAGE = """<!DOCTYPE html>
 
         .streak-summary-banner { background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px 16px; margin-top: 14px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
 
+        /* 🔍 股票输入下拉推荐面板与历史记录 */
+        .stock-input-wrapper { position: relative; }
+        .stock-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            z-index: 1000;
+            max-height: 280px;
+            overflow-y: auto;
+            display: none;
+        }
+        .dropdown-header {
+            font-size: 11px;
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            background: #0a1120;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dropdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 9px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .dropdown-item:hover {
+            background: #1e293b;
+        }
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .dropdown-del-btn {
+            color: #64748b;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .dropdown-del-btn:hover {
+            color: #f43f5e;
+            background: rgba(244, 63, 94, 0.15);
+        }
+
         @media (max-width: 900px) {
             .cards-grid { grid-template-columns: 1fr; }
             .control-panel { grid-template-columns: 1fr; }
@@ -145,9 +199,10 @@ HTML_PAGE = """<!DOCTYPE html>
 
         <!-- 控制栏 -->
         <div class="control-panel">
-            <div class="form-group">
-                <label>股票代码</label>
-                <input type="text" id="symbolInput" value="300059" placeholder="如 300059, 600519">
+            <div class="form-group stock-input-wrapper">
+                <label>股票代码 (记忆上次 & 智能推荐)</label>
+                <input type="text" id="symbolInput" placeholder="输入代码或名称 如 000530, 冰山冷热" autocomplete="off" onfocus="showDropdown(this.value)" oninput="showDropdown(this.value)">
+                <div id="stockDropdown" class="stock-dropdown"></div>
             </div>
             <div class="form-group">
                 <label>未来推演天数 (1 ~ 30 天)</label>
@@ -174,14 +229,23 @@ HTML_PAGE = """<!DOCTYPE html>
             </div>
             <button class="btn-query" onclick="doQuery()">开始测算</button>
 
+            <!-- 历史测算记录标签栏 -->
+            <div class="quick-tags" id="historyTagsRow" style="display: none; margin-bottom: 2px;">
+                <span class="quick-tag-label" style="color: #38bdf8; font-weight: 600;">🕒 历史测算:</span>
+                <div id="historyTagsList" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+                <button class="tag-btn" onclick="clearAllHistory()" style="color: #94a3b8; font-size: 11px; padding: 2px 6px;">清空历史</button>
+            </div>
+
+            <!-- 快速填充常用股票标签 -->
             <div class="quick-tags">
-                <span class="quick-tag-label">快速填充:</span>
-                <button class="tag-btn" onclick="setQuick('300059')">东方财富 (创业板)</button>
-                <button class="tag-btn" onclick="setQuick('300750')">宁德时代 (创业板)</button>
-                <button class="tag-btn" onclick="setQuick('600519')">贵州茅台 (沪市主板)</button>
-                <button class="tag-btn" onclick="setQuick('000001')">平安银行 (深市主板)</button>
-                <button class="tag-btn" onclick="setQuick('002594')">比亚迪 (深市主板)</button>
-                <button class="tag-btn" onclick="setQuick('688981')">中芯国际 (科创板)</button>
+                <span class="quick-tag-label">常用示例:</span>
+                <button class="tag-btn" onclick="setQuick('000530')">冰山冷热 (000530)</button>
+                <button class="tag-btn" onclick="setQuick('300059')">东方财富 (300059)</button>
+                <button class="tag-btn" onclick="setQuick('300750')">宁德时代 (300750)</button>
+                <button class="tag-btn" onclick="setQuick('600519')">贵州茅台 (600519)</button>
+                <button class="tag-btn" onclick="setQuick('000001')">平安银行 (000001)</button>
+                <button class="tag-btn" onclick="setQuick('002594')">比亚迪 (002594)</button>
+                <button class="tag-btn" onclick="setQuick('688981')">中芯国际 (688981)</button>
             </div>
         </div>
 
@@ -419,22 +483,200 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 
     <script>
+        const BUILTIN_STOCKS = [
+            { symbol: "000530", name: "冰山冷热", market: "深市主板" },
+            { symbol: "300059", name: "东方财富", market: "创业板" },
+            { symbol: "300750", name: "宁德时代", market: "创业板" },
+            { symbol: "600519", name: "贵州茅台", market: "沪市主板" },
+            { symbol: "000001", name: "平安银行", market: "深市主板" },
+            { symbol: "002594", name: "比亚迪", market: "深市主板" },
+            { symbol: "688981", name: "中芯国际", market: "科创板" }
+        ];
+
+        function getHistoryList() {
+            try {
+                const raw = localStorage.getItem('stock_history_records');
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveToHistory(symbol, name, market) {
+            if (!symbol) return;
+            try {
+                let list = getHistoryList();
+                list = list.filter(item => item.symbol !== symbol);
+                list.unshift({
+                    symbol: symbol,
+                    name: name || symbol,
+                    market: market || "",
+                    timestamp: Date.now()
+                });
+                if (list.length > 20) list = list.slice(0, 20);
+                localStorage.setItem('stock_history_records', JSON.stringify(list));
+                localStorage.setItem('stock_last_symbol', symbol);
+                renderHistoryTags();
+            } catch (e) {
+                console.error("saveToHistory error:", e);
+            }
+        }
+
+        function deleteHistory(event, symbol) {
+            if (event) event.stopPropagation();
+            try {
+                let list = getHistoryList();
+                list = list.filter(item => item.symbol !== symbol);
+                localStorage.setItem('stock_history_records', JSON.stringify(list));
+                
+                const lastSym = localStorage.getItem('stock_last_symbol');
+                if (lastSym === symbol) {
+                    localStorage.setItem('stock_last_symbol', list.length > 0 ? list[0].symbol : '000530');
+                }
+                renderHistoryTags();
+                showDropdown(document.getElementById('symbolInput').value);
+            } catch (e) {
+                console.error("deleteHistory error:", e);
+            }
+        }
+
+        function clearAllHistory() {
+            if (confirm("确定清空所有测算历史记录吗？")) {
+                localStorage.removeItem('stock_history_records');
+                renderHistoryTags();
+                hideDropdown();
+            }
+        }
+
+        function renderHistoryTags() {
+            const list = getHistoryList();
+            const row = document.getElementById('historyTagsRow');
+            const container = document.getElementById('historyTagsList');
+            if (!row || !container) return;
+
+            if (list.length === 0) {
+                row.style.display = 'none';
+                container.innerHTML = '';
+                return;
+            }
+
+            row.style.display = 'flex';
+            container.innerHTML = '';
+            list.slice(0, 8).forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'tag-btn';
+                btn.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+                btn.style.color = '#e0f2fe';
+                btn.innerText = `${item.name} (${item.symbol})`;
+                btn.onclick = () => setQuick(item.symbol);
+                container.appendChild(btn);
+            });
+        }
+
+        function hideDropdown() {
+            const dd = document.getElementById('stockDropdown');
+            if (dd) dd.style.display = 'none';
+        }
+
+        function showDropdown(filterVal) {
+            const dd = document.getElementById('stockDropdown');
+            if (!dd) return;
+
+            const q = (filterVal || '').trim().toLowerCase();
+            const historyList = getHistoryList();
+            
+            const seen = new Set();
+            const merged = [];
+            
+            historyList.forEach(item => {
+                seen.add(item.symbol);
+                merged.push({ ...item, isHistory: true });
+            });
+            
+            BUILTIN_STOCKS.forEach(item => {
+                if (!seen.has(item.symbol)) {
+                    seen.add(item.symbol);
+                    merged.push({ ...item, isHistory: false });
+                }
+            });
+
+            let matched = merged;
+            if (q) {
+                matched = merged.filter(item => 
+                    item.symbol.toLowerCase().includes(q) || 
+                    item.name.toLowerCase().includes(q)
+                );
+            }
+
+            if (matched.length === 0) {
+                dd.innerHTML = `<div style="padding: 12px; font-size: 13px; color: var(--text-secondary); text-align: center;">未找到匹配股票，输入 6 位代码直接测算</div>`;
+                dd.style.display = 'block';
+                return;
+            }
+
+            let html = `<div class="dropdown-header">
+                <span>🕒 历史记录与推荐股票 (${matched.length})</span>
+                <span style="font-size: 10px; color: #64748b;">支持代码/中文过滤</span>
+            </div>`;
+
+            matched.slice(0, 10).forEach(item => {
+                const histTag = item.isHistory ? '<span style="font-size: 10px; color: #38bdf8; background: rgba(56,189,248,0.1); padding: 1px 4px; border-radius: 3px;">历史</span>' : '';
+                const marketTag = item.market ? `<span class="rule-tag" style="font-size: 10px; padding: 1px 5px;">${item.market}</span>` : '';
+                const delBtn = item.isHistory 
+                    ? `<span class="dropdown-del-btn" onclick="deleteHistory(event, '${item.symbol}')" title="删除历史记录">✕</span>` 
+                    : '';
+
+                html += `
+                    <div class="dropdown-item" onclick="selectStock('${item.symbol}')">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #38bdf8; font-size: 13px;">${item.symbol}</strong>
+                            <span style="color: #fff; font-size: 13px; font-weight: 500;">${item.name}</span>
+                            ${marketTag}
+                            ${histTag}
+                        </div>
+                        ${delBtn}
+                    </div>
+                `;
+            });
+
+            dd.innerHTML = html;
+            dd.style.display = 'block';
+        }
+
+        function selectStock(code) {
+            document.getElementById('symbolInput').value = code;
+            hideDropdown();
+            doQuery();
+        }
+
         function setQuick(code) {
             document.getElementById('symbolInput').value = code;
+            hideDropdown();
             doQuery();
         }
 
         async function doQuery() {
-            const code = document.getElementById('symbolInput').value.trim();
+            hideDropdown();
+            let code = document.getElementById('symbolInput').value.trim();
+            if (!code) {
+                code = localStorage.getItem('stock_last_symbol') || '000530';
+                document.getElementById('symbolInput').value = code;
+            }
+
+            // 若用户输入中文名称，尝试自动匹配对应代码
+            if (!/^\d{6}$/.test(code)) {
+                const allList = [...getHistoryList(), ...BUILTIN_STOCKS];
+                const found = allList.find(s => s.name === code || s.name.includes(code));
+                if (found) {
+                    code = found.symbol;
+                    document.getElementById('symbolInput').value = code;
+                }
+            }
+
             const days = document.getElementById('daysInput').value.trim() || 5;
             const indexChg = document.getElementById('indexChgInput').value.trim() || 0.0;
             const mode = document.getElementById('modeSelect').value;
             const baseMode = document.getElementById('baseModeSelect').value;
-
-            if (!code) {
-                alert("请输入股票代码");
-                return;
-            }
 
             try {
                 const resp = await fetch(`/api/calculate?code=${code}&days=${days}&assume_index=${indexChg}&mode=${mode}&base_mode=${baseMode}`);
@@ -453,6 +695,9 @@ HTML_PAGE = """<!DOCTYPE html>
 
         function renderData(data) {
             const r = data.report;
+            if (r && r.symbol) {
+                saveToHistory(r.symbol, r.stock_name, r.market_name);
+            }
             document.getElementById('sourceTag').innerText = data.is_mock ? "高仿仿真模拟源" : "东方财富实时数据源";
 
             // 头部时段标签
@@ -964,7 +1209,34 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
-        window.onload = () => doQuery();
+        window.onload = () => {
+            // 优先恢复上次测算的股票代码，无记录时默认 000530
+            const lastCode = localStorage.getItem('stock_last_symbol') || '000530';
+            const input = document.getElementById('symbolInput');
+            if (input) {
+                input.value = lastCode;
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        hideDropdown();
+                        doQuery();
+                    }
+                });
+            }
+
+            // 点击页面外部区域时自动收起推荐下拉框
+            document.addEventListener('click', (e) => {
+                const dd = document.getElementById('stockDropdown');
+                if (dd && !dd.contains(e.target) && e.target !== input) {
+                    hideDropdown();
+                }
+            });
+
+            // 渲染历史测算快捷标签
+            renderHistoryTags();
+
+            // 自动测算上次保存的代码
+            doQuery();
+        };
     </script>
 </body>
 </html>
