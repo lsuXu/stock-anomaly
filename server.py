@@ -99,11 +99,29 @@ HTML_PAGE = """<!DOCTYPE html>
         .subpanel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
         .subpanel-title { font-size: 15px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; }
         
-        .sim-slider-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }
-        .sim-slider-row label { font-size: 13px; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
-        .sim-slider-row input[type="range"] { flex: 1; min-width: 140px; accent-color: #38bdf8; cursor: pointer; }
-        .sim-val-display { font-size: 15px; font-weight: 700; color: #fff; background: #1a253c; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); min-width: 86px; text-align: center; }
-        .sim-price-display { font-size: 14px; color: var(--amber); font-weight: 600; margin-left: 6px; }
+        /* 🎮 沙盘精细输入与一键脱离推荐按钮 */
+        .sand-control-container { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+        .sand-inputs-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+        .sand-input-group { display: flex; align-items: center; gap: 8px; }
+        .sand-input-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; white-space: nowrap; }
+        .sand-input-unit-wrap { position: relative; display: flex; align-items: center; }
+        .sand-input-unit-wrap input[type="number"] { width: 95px; background: #0c1424; border: 1px solid #334155; border-radius: 6px; padding: 7px 24px 7px 10px; font-size: 15px; font-weight: 700; color: #fff; outline: none; transition: border-color 0.2s; }
+        .sand-input-unit-wrap input[type="number"]:focus { border-color: #38bdf8; }
+        #simPriceInput { color: #fbbf24; }
+        .sand-input-unit-wrap .unit-text { position: absolute; right: 8px; font-size: 12px; color: var(--text-secondary); pointer-events: none; }
+        
+        .sand-slider-group { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 140px; }
+        .sand-slider-group input[type="range"] { flex: 1; accent-color: #38bdf8; cursor: pointer; }
+
+        .btn-rec-safe { background: linear-gradient(135deg, #059669 0%, #0284c7 100%); color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35); }
+        .btn-rec-safe:hover { opacity: 0.92; transform: translateY(-1px); }
+
+        .sand-quick-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); }
+
+        .rec-advice-card { background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px 14px; margin-top: 12px; animation: fadeIn 0.2s ease-in-out; }
+        .rec-advice-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .rec-advice-content { font-size: 13px; color: #e2e8f0; line-height: 1.5; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
         .sand-quick-btns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
         .sand-quick-btn { background: #1a253c; border: 1px solid var(--border); color: #cbd5e1; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
@@ -366,16 +384,45 @@ HTML_PAGE = """<!DOCTYPE html>
             <!-- 推演 A: 假设控盘逐日推演 -->
             <div class="sandtable-subpanel">
                 <div class="subpanel-header">
-                    <span class="subpanel-title">🎯 推演 A: 假设收盘涨幅 (What-If 控盘空间推演)</span>
+                    <span class="subpanel-title">🎯 推演 A: 假设收盘涨幅与价格 (What-If 控盘空间推演)</span>
                     <span style="font-size: 12px; color: var(--text-secondary);" id="sandTargetDayLabel">假设今日收盘走势:</span>
                 </div>
 
-                <div class="sim-slider-row">
-                    <label id="simSliderLabel">设定今日收盘涨幅:</label>
-                    <input type="range" id="simSlider" min="-10.0" max="10.0" step="0.1" value="0.0" oninput="onSimSliderInput(this.value)">
-                    <div class="sim-val-display" id="simValDisplay">+0.00%</div>
-                    <div class="sim-price-display">对应模拟收盘价: <strong id="simPriceDisplay">-- 元</strong></div>
-                    <div class="sand-quick-btns">
+                <!-- 精细输入与一键脱离异动推荐区 -->
+                <div class="sand-control-container">
+                    <div class="sand-inputs-bar">
+                        <!-- 直接输入价格 -->
+                        <div class="sand-input-group">
+                            <label class="sand-input-label" id="labelPriceInput">💰 直接输入价格:</label>
+                            <div class="sand-input-unit-wrap">
+                                <input type="number" id="simPriceInput" step="0.01" placeholder="如 9.80" oninput="onDirectPriceInput(this.value)">
+                                <span class="unit-text">元</span>
+                            </div>
+                        </div>
+
+                        <!-- 直接输入涨跌幅 -->
+                        <div class="sand-input-group">
+                            <label class="sand-input-label" id="labelPctInput">📈 对应涨跌幅:</label>
+                            <div class="sand-input-unit-wrap">
+                                <input type="number" id="simPctInput" step="0.01" placeholder="如 3.25" oninput="onDirectPctInput(this.value)">
+                                <span class="unit-text">%</span>
+                            </div>
+                        </div>
+
+                        <!-- 辅助滑块微调 -->
+                        <div class="sand-slider-group">
+                            <label class="sand-input-label">微调:</label>
+                            <input type="range" id="simSlider" min="-10.0" max="10.0" step="0.1" value="0.0" oninput="onSimSliderInput(this.value)">
+                        </div>
+
+                        <!-- ⚡ 一键测算下一日脱离异动按钮 -->
+                        <button class="btn-rec-safe" onclick="calculateNextDaySafePrice()" title="一键计算明日拉板或脱离异动的推荐价格">
+                            ⚡ 一键测算：下一日脱离异动推荐价
+                        </button>
+                    </div>
+
+                    <!-- 快速定盘快捷按钮 -->
+                    <div class="sand-quick-row">
                         <span style="font-size: 11px; color: var(--text-secondary);">快速定盘:</span>
                         <button class="sand-quick-btn" onclick="applySimRise('limit_down')">跌停板</button>
                         <button class="sand-quick-btn" onclick="applySimRise(-5.0)">-5.0%</button>
@@ -385,6 +432,18 @@ HTML_PAGE = """<!DOCTYPE html>
                         <button class="sand-quick-btn" onclick="applySimRise(3.0)">+3.0%</button>
                         <button class="sand-quick-btn" onclick="applySimRise(4.0)">+4.0%</button>
                         <button class="sand-quick-btn" onclick="applySimRise('limit_up')">涨停板</button>
+                    </div>
+
+                    <!-- 推荐脱离异动控盘分析卡片 -->
+                    <div class="rec-advice-card" id="recAdviceCard" style="display: none;">
+                        <div class="rec-advice-header">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 14px; font-weight: 700; color: #38bdf8;">🎯 下一日脱离异动·推荐控盘参考</span>
+                                <span id="recAdviceBadge" class="badge badge-status-safe">脱离异动安全区</span>
+                            </div>
+                            <span style="font-size: 11px; color: var(--text-secondary);">*已自动为您填入并刷新下方推演表</span>
+                        </div>
+                        <div class="rec-advice-content" id="recAdviceContent"></div>
                     </div>
                 </div>
 
@@ -1070,15 +1129,22 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const targetLabel = r.is_intraday ? "今日" : "下一交易日";
             document.getElementById('sandTargetDayLabel').innerText = `假设${targetLabel}收盘走势推演:`;
-            document.getElementById('simSliderLabel').innerText = `设定${targetLabel}收盘涨幅:`;
+            if (document.getElementById('labelPriceInput')) {
+                document.getElementById('labelPriceInput').innerText = `💰 设定${targetLabel}收盘价:`;
+            }
+            if (document.getElementById('labelPctInput')) {
+                document.getElementById('labelPctInput').innerText = `📈 对应${targetLabel}涨幅:`;
+            }
 
             const limit = r.price_limit_pct;
             const slider = document.getElementById('simSlider');
-            slider.min = (-limit).toFixed(1);
-            slider.max = limit.toFixed(1);
-            slider.value = st.assumed_today_rise_pct;
+            if (slider) {
+                slider.min = (-limit).toFixed(1);
+                slider.max = limit.toFixed(1);
+                slider.value = st.assumed_today_rise_pct;
+            }
 
-            updateSimDisplay(st.assumed_today_rise_pct, st.assumed_today_price);
+            updateSimInputs(st.assumed_today_rise_pct, st.assumed_today_price);
             renderWhatIfTable(st.what_if_steps);
             renderReverseMatrix(st.reverse_plans, targetLabel);
 
@@ -1090,13 +1156,20 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
-        function updateSimDisplay(pct, price) {
-            const sign = pct >= 0 ? '+' : '';
-            const color = pct >= 0 ? 'var(--red)' : 'var(--green)';
-            const valElem = document.getElementById('simValDisplay');
-            valElem.style.color = color;
-            valElem.innerText = `${sign}${Number(pct).toFixed(2)}%`;
-            document.getElementById('simPriceDisplay').innerText = `${Number(price).toFixed(2)} 元`;
+        function updateSimInputs(pct, price) {
+            const pInput = document.getElementById('simPriceInput');
+            const rInput = document.getElementById('simPctInput');
+            const slider = document.getElementById('simSlider');
+
+            if (pInput && document.activeElement !== pInput) {
+                pInput.value = Number(price).toFixed(2);
+            }
+            if (rInput && document.activeElement !== rInput) {
+                const numPct = Number(pct);
+                rInput.value = numPct.toFixed(2);
+                rInput.style.color = numPct >= 0 ? 'var(--red)' : 'var(--green)';
+            }
+            if (slider) slider.value = Number(pct).toFixed(1);
         }
 
         function renderWhatIfTable(steps) {
@@ -1173,15 +1246,63 @@ HTML_PAGE = """<!DOCTYPE html>
             });
         }
 
-        function onSimSliderInput(val) {
+        function onDirectPriceInput(val) {
             if (!currentReportData) return;
+            const price = parseFloat(val);
+            if (isNaN(price) || price <= 0) return;
+
             const pPrev = currentReportData.confirmed_close;
-            const price = pPrev * (1.0 + parseFloat(val) / 100.0);
-            updateSimDisplay(val, price);
+            const pct = ((price / pPrev) - 1.0) * 100.0;
+
+            const rInput = document.getElementById('simPctInput');
+            if (rInput && document.activeElement !== rInput) {
+                rInput.value = pct.toFixed(2);
+                rInput.style.color = pct >= 0 ? 'var(--red)' : 'var(--green)';
+            }
+            const slider = document.getElementById('simSlider');
+            if (slider) slider.value = pct.toFixed(1);
 
             clearTimeout(simDebounceTimer);
             simDebounceTimer = setTimeout(() => {
-                fetchSimRise(val);
+                fetchSimRise(pct);
+            }, 180);
+        }
+
+        function onDirectPctInput(val) {
+            if (!currentReportData) return;
+            const pct = parseFloat(val);
+            if (isNaN(pct)) return;
+
+            const pPrev = currentReportData.confirmed_close;
+            const price = pPrev * (1.0 + pct / 100.0);
+
+            const pInput = document.getElementById('simPriceInput');
+            if (pInput && document.activeElement !== pInput) {
+                pInput.value = price.toFixed(2);
+            }
+            const rInput = document.getElementById('simPctInput');
+            if (rInput) {
+                rInput.style.color = pct >= 0 ? 'var(--red)' : 'var(--green)';
+            }
+            const slider = document.getElementById('simSlider');
+            if (slider) slider.value = pct.toFixed(1);
+
+            clearTimeout(simDebounceTimer);
+            simDebounceTimer = setTimeout(() => {
+                fetchSimRise(pct);
+            }, 180);
+        }
+
+        function onSimSliderInput(val) {
+            if (!currentReportData) return;
+            const pct = parseFloat(val);
+            const pPrev = currentReportData.confirmed_close;
+            const price = pPrev * (1.0 + pct / 100.0);
+            updateSimInputs(pct, price);
+
+            clearTimeout(simDebounceTimer);
+            simDebounceTimer = setTimeout(() => {
+                fetchSimRise(pct);
             }, 180);
         }
 
@@ -1192,11 +1313,88 @@ HTML_PAGE = """<!DOCTYPE html>
             if (val === 'limit_up') targetVal = limit;
             else if (val === 'limit_down') targetVal = -limit;
 
-            document.getElementById('simSlider').value = targetVal;
             const pPrev = currentReportData.confirmed_close;
             const price = pPrev * (1.0 + parseFloat(targetVal) / 100.0);
-            updateSimDisplay(targetVal, price);
+            updateSimInputs(targetVal, price);
             fetchSimRise(targetVal);
+        }
+
+        function calculateNextDaySafePrice() {
+            if (!currentReportData || !currentReportData.sandtable) return;
+            const r = currentReportData;
+            const st = r.sandtable;
+            const pPrev = r.confirmed_close;
+            const limitRate = r.price_limit_pct / 100.0;
+            const targetLabel = r.is_intraday ? "今日" : "下一交易日";
+            const nextDayLabel = r.is_intraday ? "明日 (T+1)" : "下下交易日 (T+2)";
+
+            const plan1 = st.reverse_plans && st.reverse_plans.length > 0 ? st.reverse_plans[0] : null;
+            const step1 = st.what_if_steps && st.what_if_steps.length > 0 ? st.what_if_steps[0] : null;
+            if (!plan1 || !step1) return;
+
+            const pRec = plan1.max_today_price;
+            const rRec = plan1.max_today_rise_pct;
+            const critToday = r.severe_10d.crit_price;
+            const critTomorrow = step1.crit_price;
+            const streakTomorrow = Number((pRec * (1.0 + limitRate)).toFixed(2));
+            const bufferMargin = Number((critTomorrow - streakTomorrow).toFixed(2));
+            const bufferPct = Number(((bufferMargin / pRec) * 100.0).toFixed(2));
+
+            updateSimInputs(rRec, pRec);
+            fetchSimRise(rRec);
+
+            const card = document.getElementById('recAdviceCard');
+            const badge = document.getElementById('recAdviceBadge');
+            const content = document.getElementById('recAdviceContent');
+
+            if (card && badge && content) {
+                card.style.display = 'block';
+
+                if (plan1.level_type === 'safe') {
+                    badge.className = 'badge badge-status-safe';
+                    badge.innerText = '毫无法定压力';
+                } else if (plan1.level_type === 'control_green') {
+                    badge.className = 'badge badge-status-control';
+                    badge.innerText = '可达成 (红盘控涨)';
+                } else if (plan1.level_type === 'pressure_red') {
+                    badge.className = 'badge badge-status-pressure';
+                    badge.innerText = '须压盘收跌';
+                } else {
+                    badge.className = 'badge badge-status-impossible';
+                    badge.innerText = '无法达成';
+                }
+
+                const riseColor = rRec >= 0 ? 'var(--red)' : 'var(--green)';
+                const sign = rRec >= 0 ? '+' : '';
+
+                let adviceDetails = '';
+                if (plan1.is_achievable) {
+                    adviceDetails = `
+                        💡 <strong>测算逻辑与参考：</strong>
+                        若${targetLabel}收盘控制在 <strong>${pRec.toFixed(2)} 元</strong>（涨跌幅 <strong>${sign}${rRec.toFixed(2)}%</strong>）以内：
+                        <br/>
+                        1. ${targetLabel}收盘严格处于 10 日异动红线（${critToday.toFixed(2)} 元）下方，${targetLabel}不吃异动；
+                        <br/>
+                        2. ${nextDayLabel}即便封死涨停（涨停价 <strong>${streakTomorrow.toFixed(2)} 元</strong>），依然低于${nextDayLabel} 10 日异动红线（<strong>${critTomorrow.toFixed(2)} 元</strong>），留有 <strong>${bufferMargin.toFixed(2)} 元 (+${bufferPct.toFixed(2)}%)</strong> 的安全边际空间，可确保完全脱离严重异动风险！
+                    `;
+                } else {
+                    adviceDetails = `
+                        ⚠️ <strong>测算结论：</strong> 当前个股前期累计涨幅过大，即使${targetLabel}封死跌停板，${nextDayLabel}也无法脱离异动。建议等待后续交易日基期抬升后再寻找开盘机会。
+                    `;
+                }
+
+                content.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                        <div>
+                            ${targetLabel}脱离异动推荐收盘价: <strong style="color: #fbbf24; font-size: 19px;">${pRec.toFixed(2)} 元</strong>
+                            &nbsp;&nbsp;对应涨跌幅: <strong style="color: ${riseColor}; font-size: 16px;">${sign}${rRec.toFixed(2)}%</strong>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px;">
+                        ${adviceDetails}
+                    </div>
+                `;
+            }
         }
 
         async function fetchSimRise(val) {
