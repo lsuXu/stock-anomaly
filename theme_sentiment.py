@@ -379,11 +379,12 @@ class ThemeSentimentEngine:
 
     @classmethod
     def get_broken_board_backtest(
-        cls, days: int = 5, target_height: str = "all", ref_date: Optional[str] = None
+        cls, days: int = 5, target_height: str = "all", ref_date: Optional[str] = None, pre_days: int = 4, post_days: int = 5
     ) -> Dict[str, Any]:
         """
         断板亏钱效应回测：
-        统计过去指定交易日内，达到指定高度的股票断板时的当日表现及次日(T+1)、隔日(T+2)亏钱与修复表现。
+        统计过去指定交易日内，达到指定高度的股票断板时的当日表现及次日(T+1)、隔日(T+2)亏钱与修复表现，
+        并支持截取断板前指定天数与断板后至多 post_days 天的日K走势数据 (若后续不足5日则仅绘制实际已有K线)。
         """
         all_dates = cls.get_trading_dates(days + 15)
         if not all_dates:
@@ -443,26 +444,47 @@ class ThemeSentimentEngine:
                         "t2_date": "-",
                         "t2_close_pct": None,
                         "cum_return_2d": None,
-                        "sentiment_tag": "分歧断板"
+                        "sentiment_tag": "分歧断板",
+                        "mini_kline": []
                     })
 
-        # 2. 并发拉取个股日K线计算 T+1, T+2 表现
+        # 2. 并发拉取个股日K线计算 T+1, T+2 表现及前后走势
         unique_codes = list({r["code"] for r in broken_records})
         code_klines_map: Dict[str, List[Any]] = {}
 
         def fetch_stock_kline(c: str):
+            cache_k = f"kline_{c}"
+            if cache_k in cls._memory_cache:
+                return c, cls._memory_cache[cache_k]
+
             try:
                 cfg = identify_market_config(c)
-                bars = DataSource.fetch_tencent_klines(f"{cfg.tencent_market}{c}", limit=40)
-                return c, bars
+                sym = f"{cfg.tencent_market}{c}"
+                # 1. 优先从新浪财经获取完整日K (高可用、响应极快、不限频)
+                bars = DataSource.fetch_sina_klines(sym, limit=60)
+                if bars and len(bars) >= 5:
+                    cls._memory_cache[cache_k] = bars
+                    return c, bars
+                # 2. 备选尝试东财
+                secid = f"{cfg.stock_prefix}{c}"
+                bars = DataSource.fetch_eastmoney_klines(secid, limit=60)
+                if bars and len(bars) >= 5:
+                    cls._memory_cache[cache_k] = bars
+                    return c, bars
+                # 3. 备选尝试腾讯
+                bars = DataSource.fetch_tencent_klines(sym, limit=60)
+                if bars and len(bars) >= 5:
+                    cls._memory_cache[cache_k] = bars
+                    return c, bars
             except Exception:
-                return c, []
+                pass
+            return c, []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             for c, bars in ex.map(fetch_stock_kline, unique_codes):
                 code_klines_map[c] = bars
 
-        # 3. 计算每只股票的 T+1, T+2 亏钱指标
+        # 3. 计算每只股票的 T+1, T+2 亏钱指标及断板前后日K切片
         for r in broken_records:
             code = r["code"]
             b_date_str = r["break_date"]
@@ -490,6 +512,22 @@ class ThemeSentimentEngine:
                     r["t2_date"] = b2.date.replace("-", "")
                     r["t2_close_pct"] = round(b2.pct_change, 2)
                     r["cum_return_2d"] = round(((b2.close - b0.close) / b0.close) * 100.0, 2)
+
+                # 截取断板前指定天数与断板后至多 post_days 天的走势日K (不足交易日不填充，直接截断)
+                start_k = max(0, b_idx - pre_days)
+                end_k = min(len(bars), b_idx + post_days + 1)
+                r["mini_kline"] = [{
+                    "date": b.date,
+                    "open": b.open,
+                    "close": b.close,
+                    "high": b.high,
+                    "low": b.low,
+                    "pct": b.pct_change,
+                    "is_break_day": (b.date == b_date_fmt),
+                    "offset": i - b_idx
+                } for i, b in enumerate(bars) if start_k <= i < end_k]
+            else:
+                r["mini_kline"] = []
 
             # 打标分类
             t0_pct = r["t0_pct_change"]

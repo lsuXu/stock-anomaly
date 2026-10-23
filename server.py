@@ -148,6 +148,11 @@ HTML_PAGE = """<!DOCTYPE html>
         .badge-tag-rebound { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
         .badge-tag-neutral { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25); padding: 3px 8px; border-radius: 4px; font-size: 11px; }
 
+        /* 弹窗：断板个股前后走势K线图 */
+        .kline-modal-backdrop { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; }
+        .kline-modal-content { background: #131c2e; border: 1px solid #38bdf8; border-radius: 12px; width: 92%; max-width: 800px; box-shadow: 0 20px 50px rgba(0,0,0,0.85); padding: 22px 26px; animation: fadeIn 0.2s ease-in-out; }
+        .kline-modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 14px; }
+
         /* 🎮 沙盘推演样式 */
         .sandtable-box { background: linear-gradient(180deg, #131c2e 0%, #0d1525 100%); border: 1px solid #293d66; border-radius: 12px; padding: 22px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.35); }
         .sandtable-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
@@ -675,6 +680,25 @@ HTML_PAGE = """<!DOCTYPE html>
                             <option value="high_5_plus">5板及以上断板 (高标特停/核按钮)</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label>断板走势日K范围设置 (统一设置前后跨度)</label>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <span style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">前:</span>
+                            <select id="themePreDaysSelect" onchange="doQueryThemeSentiment()" style="flex: 1;">
+                                <option value="3">前 3 天</option>
+                                <option value="4" selected>前 4 天 (默认)</option>
+                                <option value="5">前 5 天</option>
+                                <option value="7">前 7 天</option>
+                            </select>
+                            <span style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">至 后:</span>
+                            <select id="themePostDaysSelect" onchange="doQueryThemeSentiment()" style="flex: 1;">
+                                <option value="3">后 3 天</option>
+                                <option value="5" selected>后 5 天 (默认)</option>
+                                <option value="7">后 7 天</option>
+                                <option value="10">后 10 天</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -831,6 +855,7 @@ HTML_PAGE = """<!DOCTYPE html>
                                 <th>断板交易日 (T日)</th>
                                 <th>断板日收盘涨跌</th>
                                 <th>断板日大面幅(%)</th>
+                                <th>断板日前后日K走势 (点击放大)</th>
                                 <th>断板日振幅</th>
                                 <th>T+1日竞价溢价</th>
                                 <th>T+1日收盘涨跌</th>
@@ -867,6 +892,36 @@ HTML_PAGE = """<!DOCTYPE html>
                 </div>
                 <div class="themes-matrix-grid" id="themesMatrixContainer">
                     <div style="text-align: center; color: var(--text-secondary); padding: 20px;">载入题材数据中...</div>
+                </div>
+            </div>
+
+            <!-- 弹窗：断板个股前后日K走势高清大图与明细 -->
+            <div id="klineModal" class="kline-modal-backdrop" onclick="closeKLineModal()">
+                <div class="kline-modal-content" onclick="event.stopPropagation()">
+                    <div class="kline-modal-header">
+                        <div>
+                            <div style="font-size: 16px; font-weight: 700; color: #fff;" id="modalStockTitle">断板前后日K走势明细</div>
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;" id="modalStockSubtitle">金黄色高亮蜡烛为断板日，不足5日交易日已自然截止</div>
+                        </div>
+                        <button class="kline-filter-btn" onclick="closeKLineModal()" style="font-size: 12px; padding: 4px 10px;">✖ 关闭</button>
+                    </div>
+                    <div id="modalSvgContainer" style="padding: 10px 0; text-align: center;"></div>
+                    <div style="overflow-x: auto; max-height: 220px; border: 1px solid var(--border); border-radius: 8px;">
+                        <table style="font-size: 12px; margin-bottom: 0;">
+                            <thead>
+                                <tr>
+                                    <th>交易日期</th>
+                                    <th>定位阶段</th>
+                                    <th>开盘价</th>
+                                    <th>收盘价</th>
+                                    <th>最高价</th>
+                                    <th>最低价</th>
+                                    <th>当日涨跌幅</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalKLineTbody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div><!-- ==================== /板块3: 题材梯队与连板效应 ==================== -->
@@ -1848,9 +1903,13 @@ HTML_PAGE = """<!DOCTYPE html>
             const days = daysInput ? daysInput.value : 5;
             const heightSel = document.getElementById('themeHeightSelect');
             const height = heightSel ? heightSel.value : 'all';
+            const preDaysSel = document.getElementById('themePreDaysSelect');
+            const preDays = preDaysSel ? preDaysSel.value : 4;
+            const postDaysSel = document.getElementById('themePostDaysSelect');
+            const postDays = postDaysSel ? postDaysSel.value : 5;
 
             try {
-                const resp = await fetch(`/api/theme_sentiment?date=${encodeURIComponent(date)}&days=${days}&height=${height}`);
+                const resp = await fetch(`/api/theme_sentiment?date=${encodeURIComponent(date)}&days=${days}&height=${height}&pre_days=${preDays}&post_days=${postDays}`);
                 const data = await resp.json();
                 if (data.success) {
                     window._themeSentimentLoaded = true;
@@ -1994,7 +2053,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const list = backtest.details || [];
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-secondary); padding: 24px;">所选时间范围和高度下暂无断板样本</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-secondary); padding: 24px;">所选时间范围和高度下暂无断板样本</td></tr>`;
                 return;
             }
 
@@ -2016,6 +2075,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 else if (item.sentiment_tag.includes('核按钮') || item.sentiment_tag.includes('大面')) tagClass = 'badge-tag-slump';
 
                 const fmtDate = `${item.break_date.substring(0,4)}-${item.break_date.substring(4,6)}-${item.break_date.substring(6,8)}`;
+                const miniKLineHtml = renderMiniKLineSvg(item.mini_kline, item.code, item.name, item.stage);
 
                 return `
                     <tr>
@@ -2028,6 +2088,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         <td>${fmtDate}</td>
                         <td style="color: ${t0Color}; font-weight: 700;">${t0Sign}${item.t0_pct_change.toFixed(2)}%</td>
                         <td style="color: #f43f5e; font-weight: 700;">${item.t0_drop_from_high.toFixed(2)}%</td>
+                        <td>${miniKLineHtml}</td>
                         <td>${item.t0_amplitude.toFixed(2)}%</td>
                         <td style="color: ${t1GapColor}; font-weight: 600;">${t1GapStr}</td>
                         <td style="color: ${t1CloseColor}; font-weight: 700;">${t1CloseStr}</td>
@@ -2039,6 +2100,135 @@ HTML_PAGE = """<!DOCTYPE html>
                     </tr>
                 `;
             }).join('');
+        }
+
+        function renderMiniKLineSvg(bars, stockCode, stockName, stage) {
+            if (!bars || bars.length === 0) {
+                return '<span style="color:#64748b; font-size:11px;">无K线数据</span>';
+            }
+            const width = 150;
+            const height = 40;
+            const padY = 3;
+            const minP = Math.min(...bars.map(b => b.low));
+            const maxP = Math.max(...bars.map(b => b.high));
+            const rangeP = (maxP - minP) > 0 ? (maxP - minP) : 1;
+            const toY = (p) => height - padY - ((p - minP) / rangeP) * (height - padY * 2);
+
+            const count = bars.length;
+            const candleW = Math.max(3, Math.min(8, Math.floor((width - 12) / count) - 2));
+            const stepX = (width - 12) / count;
+
+            let svg = `<svg width="${width}" height="${height}" style="background:rgba(10,16,29,0.8); border:1px solid rgba(255,255,255,0.06); border-radius:4px; vertical-align:middle;">`;
+            svg += `<line x1="0" y1="${height/2}" x2="${width}" y2="${height/2}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="2,2" />`;
+
+            bars.forEach((b, idx) => {
+                const cx = 6 + idx * stepX + stepX / 2;
+                const openY = toY(b.open);
+                const closeY = toY(b.close);
+                const highY = toY(b.high);
+                const lowY = toY(b.low);
+                const isRed = b.close >= b.open;
+                const color = isRed ? '#f43f5e' : '#10b981';
+                const rectTop = Math.min(openY, closeY);
+                const rectHeight = Math.max(1.5, Math.abs(openY - closeY));
+
+                svg += `<line x1="${cx}" y1="${highY}" x2="${cx}" y2="${lowY}" stroke="${color}" stroke-width="1" />`;
+
+                if (b.is_break_day) {
+                    svg += `<rect x="${cx - candleW/2}" y="${rectTop}" width="${candleW}" height="${rectHeight}" fill="${color}" stroke="#fbbf24" stroke-width="1.5" />`;
+                    svg += `<circle cx="${cx}" cy="${Math.max(2, highY - 2)}" r="1.8" fill="#fbbf24" />`;
+                } else {
+                    svg += `<rect x="${cx - candleW/2}" y="${rectTop}" width="${candleW}" height="${rectHeight}" fill="${color}" />`;
+                }
+            });
+            svg += `</svg>`;
+
+            const safeJson = encodeURIComponent(JSON.stringify(bars));
+            return `
+                <div style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;" onclick="openKLineModal('${stockCode}', '${stockName}', '${stage}', '${safeJson}')" title="点击放大查看断板走势明细">
+                    ${svg}
+                    <span style="font-size: 10px; color: #64748b; white-space: nowrap;">${bars.length}天</span>
+                </div>
+            `;
+        }
+
+        function openKLineModal(code, name, stage, encodedBars) {
+            const bars = JSON.parse(decodeURIComponent(encodedBars));
+            const modal = document.getElementById('klineModal');
+            if (!modal) return;
+
+            document.getElementById('modalStockTitle').innerText = `${name} (${code}) · ${stage} 前后走势追踪`;
+            document.getElementById('modalStockSubtitle').innerText = `共显示 ${bars.length} 个交易日日K (金黄色且带黄标蜡烛为断板日，不足5日交易日已自然截止)`;
+
+            const width = 680;
+            const height = 150;
+            const padY = 12;
+            const minP = Math.min(...bars.map(b => b.low));
+            const maxP = Math.max(...bars.map(b => b.high));
+            const rangeP = (maxP - minP) > 0 ? (maxP - minP) : 1;
+            const toY = (p) => height - padY - ((p - minP) / rangeP) * (height - padY * 2);
+
+            const count = bars.length;
+            const candleW = Math.max(10, Math.min(22, Math.floor((width - 40) / count) - 6));
+            const stepX = (width - 40) / count;
+
+            let svg = `<svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" style="background:#0a1120; border:1px solid #233354; border-radius:8px;">`;
+            svg += `<line x1="0" y1="${height/2}" x2="${width}" y2="${height/2}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="3,3" />`;
+
+            bars.forEach((b, idx) => {
+                const cx = 20 + idx * stepX + stepX / 2;
+                const openY = toY(b.open);
+                const closeY = toY(b.close);
+                const highY = toY(b.high);
+                const lowY = toY(b.low);
+                const isRed = b.close >= b.open;
+                const color = isRed ? '#f43f5e' : '#10b981';
+                const rectTop = Math.min(openY, closeY);
+                const rectHeight = Math.max(2, Math.abs(openY - closeY));
+
+                svg += `<line x1="${cx}" y1="${highY}" x2="${cx}" y2="${lowY}" stroke="${color}" stroke-width="1.5" />`;
+
+                if (b.is_break_day) {
+                    svg += `<rect x="${cx - candleW/2}" y="${rectTop}" width="${candleW}" height="${rectHeight}" fill="${color}" stroke="#fbbf24" stroke-width="2" />`;
+                    svg += `<polygon points="${cx},${Math.max(4, highY - 10)} ${cx-4},${Math.max(0, highY - 16)} ${cx+4},${Math.max(0, highY - 16)}" fill="#fbbf24" />`;
+                    svg += `<text x="${cx}" y="${height - 2}" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="700">断板日</text>`;
+                } else {
+                    svg += `<rect x="${cx - candleW/2}" y="${rectTop}" width="${candleW}" height="${rectHeight}" fill="${color}" />`;
+                    const offsetLabel = b.offset > 0 ? `+${b.offset}` : `${b.offset}`;
+                    svg += `<text x="${cx}" y="${height - 2}" text-anchor="middle" fill="#64748b" font-size="9">${offsetLabel}</text>`;
+                }
+            });
+            svg += `</svg>`;
+
+            document.getElementById('modalSvgContainer').innerHTML = svg;
+
+            const tbody = document.getElementById('modalKLineTbody');
+            if (tbody) {
+                tbody.innerHTML = bars.map(b => {
+                    const isRed = b.close >= b.open;
+                    const color = isRed ? 'var(--red)' : 'var(--green)';
+                    const sign = b.pct >= 0 ? '+' : '';
+                    let label = b.offset === 0 ? '<span style="color:#fbbf24; font-weight:700;">🎯 T0 (断板日)</span>' : (b.offset > 0 ? `<span style="color:#38bdf8;">T+${b.offset} 日</span>` : `<span style="color:#94a3b8;">T${b.offset} 日</span>`);
+                    return `
+                        <tr style="${b.is_break_day ? 'background:rgba(251,191,36,0.08);' : ''}">
+                            <td>${b.date}</td>
+                            <td>${label}</td>
+                            <td>${b.open.toFixed(2)}</td>
+                            <td style="color:${color}; font-weight:700;">${b.close.toFixed(2)}</td>
+                            <td>${b.high.toFixed(2)}</td>
+                            <td>${b.low.toFixed(2)}</td>
+                            <td style="color:${color}; font-weight:700;">${sign}${b.pct.toFixed(2)}%</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function closeKLineModal() {
+            const modal = document.getElementById('klineModal');
+            if (modal) modal.style.display = 'none';
         }
 
         function renderLadderAndThemes(ladder, themes, date) {
@@ -2251,12 +2441,26 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
             date_param = query.get("date", [""])[0].strip()
             days_str = query.get("days", ["5"])[0].strip()
             height_param = query.get("height", ["all"])[0].strip()
+            pre_days_str = query.get("pre_days", ["4"])[0].strip()
+            post_days_str = query.get("post_days", ["5"])[0].strip()
 
             try:
                 days = int(days_str)
             except ValueError:
                 days = 5
             days = max(1, min(30, days))
+
+            try:
+                pre_days = int(pre_days_str)
+            except ValueError:
+                pre_days = 4
+            pre_days = max(1, min(15, pre_days))
+
+            try:
+                post_days = int(post_days_str)
+            except ValueError:
+                post_days = 5
+            post_days = max(1, min(15, post_days))
 
             try:
                 trading_dates = ThemeSentimentEngine.get_trading_dates(30)
@@ -2267,7 +2471,9 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                 backtest_data = ThemeSentimentEngine.get_broken_board_backtest(
                     days=days,
                     target_height=height_param,
-                    ref_date=selected_date
+                    ref_date=selected_date,
+                    pre_days=pre_days,
+                    post_days=post_days
                 )
 
                 payload = {

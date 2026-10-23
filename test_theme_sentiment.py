@@ -59,9 +59,14 @@ class TestThemeSentimentEngine(unittest.TestCase):
         self.assertIn("t1_avg_close_pct", s)
 
         # 测试高度筛选 3进4
-        res_3_4 = ThemeSentimentEngine.get_broken_board_backtest(days=5, target_height="3_to_4", ref_date=dates[0])
+        res_3_4 = ThemeSentimentEngine.get_broken_board_backtest(days=5, target_height="3_to_4", ref_date=dates[0], pre_days=3, post_days=5)
         for item in res_3_4["details"]:
             self.assertEqual(item["stage"], "3进4断板")
+            self.assertIn("mini_kline", item)
+            # 验证切片天数符合范围
+            self.assertLessEqual(len(item["mini_kline"]), 3 + 5 + 1)
+            # 验证断板日标记存在
+            self.assertTrue(any(b["is_break_day"] for b in item["mini_kline"]))
 
 if __name__ == "__main__":
     unittest.main()

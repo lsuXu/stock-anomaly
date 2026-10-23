@@ -2,6 +2,7 @@
 A股异动监控系统 - 数据获取模块 (腾讯财经高可用主通道 + 东方财富备用通道)
 """
 import json
+import re
 import urllib.request
 import urllib.error
 import datetime
@@ -143,6 +144,44 @@ class DataSource:
                 return bars
         except Exception:
             return []
+
+    @classmethod
+    def fetch_sina_klines(cls, symbol_with_market: str, limit: int = 120) -> List[KLineBar]:
+        """从新浪财经获取高可用日K线数据 (极速稳定、零阻断)"""
+        url = f"https://quotes.sina.cn/cn/api/jsonp_v2.php/var_{symbol_with_market}=/CN_MarketDataService.getKLineData?symbol={symbol_with_market}&scale=240&ma=no&datalen={limit}"
+        try:
+            req = urllib.request.Request(url, headers=cls.HTTP_HEADERS)
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                content = resp.read().decode("gbk", errors="ignore")
+                m = re.search(r"=\((.*)\);?", content)
+                if m:
+                    raw_bars = json.loads(m.group(1))
+                    bars: List[KLineBar] = []
+                    prev_close = None
+                    for b in raw_bars:
+                        open_p = float(b["open"])
+                        close_p = float(b["close"])
+                        high_p = float(b["high"])
+                        low_p = float(b["low"])
+                        vol = float(b.get("volume", 0))
+                        if prev_close and prev_close > 0:
+                            pct_chg = round(((close_p / prev_close) - 1.0) * 100.0, 2)
+                        else:
+                            pct_chg = round(((close_p / open_p) - 1.0) * 100.0, 2)
+                        prev_close = close_p
+                        bars.append(KLineBar(
+                            date=b["day"],
+                            open=open_p,
+                            close=close_p,
+                            high=high_p,
+                            low=low_p,
+                            pct_change=pct_chg,
+                            volume=vol
+                        ))
+                    return bars
+        except Exception:
+            pass
+        return []
 
     @classmethod
     def fetch_eastmoney_klines(cls, secid: str, limit: int = 320) -> List[KLineBar]:
