@@ -100,14 +100,13 @@ class DataSource:
                         "open": float(parts[5]),
                         "pct_change": float(parts[32]) if len(parts) > 32 and parts[32] else 0.0
                     }
-        except Exception as e:
-            # 容灾备用
+        except Exception:
             pass
         return None
 
     @classmethod
-    def fetch_tencent_klines(cls, tencent_code: str, limit: int = 60) -> List[KLineBar]:
-        """从腾讯财经获取前复权日K线数据 (qfq)"""
+    def fetch_tencent_klines(cls, tencent_code: str, limit: int = 320) -> List[KLineBar]:
+        """从腾讯财经获取前复权日K线数据 (qfq, 支持获取长达300+个交易日)"""
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={tencent_code},day,,,{limit},qfq"
         try:
             req = urllib.request.Request(url, headers=cls.HTTP_HEADERS)
@@ -126,6 +125,7 @@ class DataSource:
                     close_p = float(b[2])
                     high_p = float(b[3])
                     low_p = float(b[4])
+                    vol = float(b[5]) if len(b) > 5 else 0.0
                     if prev_close and prev_close > 0:
                         pct_chg = round(((close_p / prev_close) - 1.0) * 100.0, 2)
                     else:
@@ -137,14 +137,15 @@ class DataSource:
                         close=close_p,
                         high=high_p,
                         low=low_p,
-                        pct_change=pct_chg
+                        pct_change=pct_chg,
+                        volume=vol
                     ))
                 return bars
         except Exception:
             return []
 
     @classmethod
-    def fetch_eastmoney_klines(cls, secid: str, limit: int = 50) -> List[KLineBar]:
+    def fetch_eastmoney_klines(cls, secid: str, limit: int = 320) -> List[KLineBar]:
         """备用通道：从东方财富拉取日K线"""
         urls = [
             f"http://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt=101&fqt=1&beg=0&end=20500000&lmt={limit}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
@@ -167,7 +168,8 @@ class DataSource:
                             close=float(parts[2]),
                             high=float(parts[3]),
                             low=float(parts[4]),
-                            pct_change=float(parts[8]) if len(parts) > 8 else 0.0
+                            pct_change=float(parts[8]) if len(parts) > 8 else 0.0,
+                            volume=float(parts[5]) if len(parts) > 5 else 0.0
                         ))
                     return bars
             except Exception:
@@ -193,7 +195,7 @@ class DataSource:
 
     @classmethod
     def get_stock_and_index_data(
-        cls, symbol: str, limit: int = 60, force_mode: Optional[str] = None
+        cls, symbol: str, limit: int = 320, force_mode: Optional[str] = None
     ) -> Tuple[MarketConfig, str, List[KLineBar], List[KLineBar], bool, bool]:
         """
         获取股票与基准指数数据 (主备自动容灾: 腾讯主通道 -> 东财备用通道 -> 离线仿真)
@@ -203,9 +205,7 @@ class DataSource:
         tencent_stock_code = f"{config.tencent_market}{symbol}"
         tencent_index_code = config.tencent_index
 
-        # -------------------------------------------------------------
-        # 1. 优先尝试腾讯财经极速通道 (全量真实股票支持)
-        # -------------------------------------------------------------
+        # 1. 优先尝试腾讯财经极速通道 (支持长达300+个交易日)
         try:
             quote = cls.fetch_tencent_quote(tencent_stock_code)
             stock_name = quote["name"] if quote and quote.get("name") else ""
@@ -218,9 +218,7 @@ class DataSource:
         except Exception:
             pass
 
-        # -------------------------------------------------------------
         # 2. 备用尝试东方财富通道
-        # -------------------------------------------------------------
         try:
             stock_secid = f"{config.stock_prefix}{symbol}"
             index_secid = config.index_secid
@@ -234,9 +232,7 @@ class DataSource:
         except Exception:
             pass
 
-        # -------------------------------------------------------------
-        # 3. 仅在完全离线/沙箱完全断网时，才降级到高仿模拟数据
-        # -------------------------------------------------------------
+        # 3. 仅在完全离线/沙箱断网时降级到仿真数据
         stock_name, stock_klines, index_klines, is_intraday = cls._generate_mock_klines(symbol, config, limit, force_mode)
         return config, stock_name, stock_klines, index_klines, is_intraday, True
 
@@ -244,7 +240,7 @@ class DataSource:
     def _generate_mock_klines(
         cls, symbol: str, config: MarketConfig, limit: int, force_mode: Optional[str] = None
     ) -> Tuple[str, List[KLineBar], List[KLineBar], bool]:
-        """生成符合对应板块走势的仿真K线数据 (含广泛知名标的映射)"""
+        """生成符合对应板块走势的仿真K线数据 (长达300+天)"""
         now = datetime.datetime.now()
         today_str = now.strftime("%Y-%m-%d")
 
@@ -297,6 +293,7 @@ class DataSource:
             high_s = round(max(open_s, close_s) * (1 + 0.005), 2)
             low_s = round(min(open_s, close_s) * (1 - 0.005), 2)
             pct_s = round(((close_s / open_s) - 1) * 100, 2)
+            vol_s = round(rng.uniform(50000, 500000))
             curr_s = close_s
 
             open_i = curr_i
@@ -304,9 +301,10 @@ class DataSource:
             high_i = round(max(open_i, close_i) * (1 + 0.002), 2)
             low_i = round(min(open_i, close_i) * (1 - 0.002), 2)
             pct_i = round(((close_i / open_i) - 1) * 100, 2)
+            vol_i = round(rng.uniform(1000000, 5000000))
             curr_i = close_i
 
-            stock_bars.append(KLineBar(date=dt, open=open_s, close=close_s, high=high_s, low=low_s, pct_change=pct_s))
-            index_bars.append(KLineBar(date=dt, open=open_i, close=close_i, high=high_i, low=low_i, pct_change=pct_i))
+            stock_bars.append(KLineBar(date=dt, open=open_s, close=close_s, high=high_s, low=low_s, pct_change=pct_s, volume=vol_s))
+            index_bars.append(KLineBar(date=dt, open=open_i, close=close_i, high=high_i, low=low_i, pct_change=pct_i, volume=vol_i))
 
         return stock_name, stock_bars, index_bars, is_intraday

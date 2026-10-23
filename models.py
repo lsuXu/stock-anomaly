@@ -32,6 +32,7 @@ class KLineBar:
     high: float
     low: float
     pct_change: float = 0.0      # 涨跌幅 (%)
+    volume: float = 0.0          # 成交量 (手 / 股)
 
 @dataclass
 class WindowDeviationDetail:
@@ -87,3 +88,6 @@ class AnomalyAnalysisReport:
     # 未来推演与历史
     future_projections: List[FutureDayProjection]
     history_bars: List[Dict[str, Any]]
+    
+    # 完整K线数据 (供给前端K线图表直接渲染，支持300天/60天切换)
+    kline_chart_data: List[Dict[str, Any]]

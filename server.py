@@ -14,6 +14,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A股异动监控与未来推演测算系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         :root {
             --bg: #0b0f19;
@@ -83,6 +84,10 @@ HTML_PAGE = """<!DOCTYPE html>
         .val-gold { color: var(--amber); font-weight: 700; }
         .badge-row-intraday { background: rgba(245, 158, 11, 0.15); color: var(--amber); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; font-weight: 600; }
         .streak-alert { background: rgba(244, 63, 94, 0.15); color: var(--red); border: 1px solid rgba(244, 63, 94, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+
+        .kline-btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .kline-filter-btn { background: #1c2842; border: 1px solid var(--border); color: #cbd5e1; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .kline-filter-btn:hover, .kline-filter-btn.active { background: #2563eb; color: #fff; border-color: #3b82f6; }
 
         @media (max-width: 900px) {
             .cards-grid { grid-template-columns: 1fr; }
@@ -229,6 +234,24 @@ HTML_PAGE = """<!DOCTYPE html>
                     <span id="status30d" class="status-safe">计算中...</span>
                 </div>
             </div>
+        </div>
+
+        <!-- 日K线走势图 -->
+        <div class="section-box" id="klineSection" style="display: none;">
+            <div class="section-title">
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <span>📊 历史日K线走势图与均线 (含成交量及异动红线)</span>
+                    <span id="klineCountLabel" style="font-size: 13px; font-weight: normal; color: var(--text-secondary);"></span>
+                </div>
+                <div class="kline-btn-group">
+                    <button class="kline-filter-btn" onclick="setKLineZoom(30)">近30日</button>
+                    <button class="kline-filter-btn active" onclick="setKLineZoom(60)">近60日</button>
+                    <button class="kline-filter-btn" onclick="setKLineZoom(120)">近120日</button>
+                    <button class="kline-filter-btn" onclick="setKLineZoom(250)">近250日 (年线)</button>
+                    <button class="kline-filter-btn" onclick="setKLineZoom(0)">全部历史 (~320日)</button>
+                </div>
+            </div>
+            <div id="klineChartContainer" style="width: 100%; height: 500px;"></div>
         </div>
 
         <!-- 未来N天推演表格 -->
@@ -395,6 +418,239 @@ HTML_PAGE = """<!DOCTYPE html>
             document.getElementById('cardsGrid').style.display = 'grid';
             document.getElementById('futureSection').style.display = 'block';
             document.getElementById('historySection').style.display = 'block';
+
+            // K线图表渲染
+            if (r.kline_chart_data && r.kline_chart_data.length > 0) {
+                document.getElementById('klineSection').style.display = 'block';
+                document.getElementById('klineCountLabel').innerText = `已载入 ${r.kline_chart_data.length} 个交易日走势`;
+                initOrUpdateKLineChart(r.kline_chart_data, r.normal_3d.crit_price, r.severe_10d.crit_price);
+            }
+        }
+
+        let klineChartInstance = null;
+        let currentKLineDates = [];
+
+        function calculateMA(dayCount, ohlc) {
+            let result = [];
+            for (let i = 0, len = ohlc.length; i < len; i++) {
+                if (i < dayCount - 1) {
+                    result.push('-');
+                    continue;
+                }
+                let sum = 0;
+                for (let j = 0; j < dayCount; j++) {
+                    sum += ohlc[i - j][1];
+                }
+                result.push((sum / dayCount).toFixed(2));
+            }
+            return result;
+        }
+
+        function initOrUpdateKLineChart(rawData, crit3d, crit10d) {
+            const chartDom = document.getElementById('klineChartContainer');
+            if (!klineChartInstance) {
+                klineChartInstance = echarts.init(chartDom);
+                window.addEventListener('resize', () => klineChartInstance && klineChartInstance.resize());
+            }
+
+            currentKLineDates = rawData.map(item => item.date);
+            const ohlc = rawData.map(item => [item.open, item.close, item.lowest, item.highest]);
+            const volumes = rawData.map(item => item.volume);
+
+            const option = {
+                animation: true,
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: 'rgba(19, 28, 46, 0.95)',
+                    borderColor: '#233354',
+                    textStyle: { color: '#f8fafc' },
+                    formatter: function (params) {
+                        const kParam = params.find(p => p.seriesName === '日K');
+                        const vParam = params.find(p => p.seriesName === '成交量');
+                        if (!kParam) return '';
+                        const d = kParam.data;
+                        const date = kParam.axisValue;
+                        const open = d[1], close = d[2], lowest = d[3], highest = d[4];
+                        const chgPct = (((close - open) / open) * 100).toFixed(2);
+                        const chgColor = close >= open ? '#f43f5e' : '#10b981';
+                        
+                        let html = `<div style="font-weight:700;margin-bottom:4px;border-bottom:1px solid #334155;padding-bottom:4px;">${date}</div>`;
+                        html += `开盘: <b>${open}</b> 元<br/>`;
+                        html += `收盘: <b style="color:${chgColor}">${close}</b> 元 (${chgPct >= 0 ? '+' : ''}${chgPct}%)<br/>`;
+                        html += `最高: <b>${highest}</b> 元<br/>`;
+                        html += `最低: <b>${lowest}</b> 元<br/>`;
+                        if (vParam) {
+                            html += `成交量: <b>${(vParam.value / 100).toFixed(0)}</b> 手<br/>`;
+                        }
+                        params.forEach(p => {
+                            if (p.seriesName.startsWith('MA')) {
+                                html += `<span style="color:${p.color}">${p.seriesName}: ${p.value}</span> `;
+                            }
+                        });
+                        return html;
+                    }
+                },
+                legend: {
+                    data: ['日K', 'MA5', 'MA10', 'MA20', 'MA30'],
+                    textStyle: { color: '#94a3b8' },
+                    top: 0
+                },
+                axisPointer: { link: [{ xAxisIndex: 'all' }] },
+                grid: [
+                    { left: '4%', right: '4%', top: '8%', height: '60%' },
+                    { left: '4%', right: '4%', top: '74%', height: '18%' }
+                ],
+                xAxis: [
+                    {
+                        type: 'category',
+                        data: currentKLineDates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: '#334155' } },
+                        axisLabel: { color: '#94a3b8' },
+                        axisTick: { show: false },
+                        splitLine: { show: false }
+                    },
+                    {
+                        type: 'category',
+                        gridIndex: 1,
+                        data: currentKLineDates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: '#334155' } },
+                        axisLabel: { show: false },
+                        axisTick: { show: false },
+                        splitLine: { show: false }
+                    }
+                ],
+                yAxis: [
+                    {
+                        scale: true,
+                        axisLine: { show: false },
+                        axisLabel: { color: '#94a3b8' },
+                        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.06)' } }
+                    },
+                    {
+                        scale: true,
+                        gridIndex: 1,
+                        splitNumber: 2,
+                        axisLabel: { show: false },
+                        axisLine: { show: false },
+                        axisTick: { show: false },
+                        splitLine: { show: false }
+                    }
+                ],
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: [0, 1], start: 80, end: 100 },
+                    {
+                        show: true,
+                        xAxisIndex: [0, 1],
+                        type: 'slider',
+                        bottom: '2%',
+                        start: 80,
+                        end: 100,
+                        textStyle: { color: '#94a3b8' },
+                        borderColor: '#233354',
+                        fillerColor: 'rgba(37, 99, 235, 0.2)'
+                    }
+                ],
+                series: [
+                    {
+                        name: '日K',
+                        type: 'candlestick',
+                        data: ohlc,
+                        itemStyle: {
+                            color: '#f43f5e',
+                            color0: '#10b981',
+                            borderColor: '#f43f5e',
+                            borderColor0: '#10b981'
+                        },
+                        markLine: {
+                            symbol: ['none', 'none'],
+                            data: [
+                                crit3d > 0 ? {
+                                    yAxis: crit3d,
+                                    name: '3日异动线',
+                                    lineStyle: { color: '#f59e0b', type: 'dashed', width: 2 },
+                                    label: { formatter: '3日异动: {c}元', position: 'end', color: '#f59e0b' }
+                                } : null,
+                                crit10d > 0 ? {
+                                    yAxis: crit10d,
+                                    name: '10日严重异动线',
+                                    lineStyle: { color: '#ef4444', type: 'dotted', width: 2 },
+                                    label: { formatter: '10日红线: {c}元', position: 'end', color: '#ef4444' }
+                                } : null
+                            ].filter(Boolean)
+                        }
+                    },
+                    {
+                        name: 'MA5',
+                        type: 'line',
+                        data: calculateMA(5, ohlc),
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.5, color: '#f59e0b' }
+                    },
+                    {
+                        name: 'MA10',
+                        type: 'line',
+                        data: calculateMA(10, ohlc),
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.5, color: '#38bdf8' }
+                    },
+                    {
+                        name: 'MA20',
+                        type: 'line',
+                        data: calculateMA(20, ohlc),
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.5, color: '#a855f7' }
+                    },
+                    {
+                        name: 'MA30',
+                        type: 'line',
+                        data: calculateMA(30, ohlc),
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.5, color: '#ec4899' }
+                    },
+                    {
+                        name: '成交量',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: volumes,
+                        itemStyle: {
+                            color: function (params) {
+                                const i = params.dataIndex;
+                                return ohlc[i][1] >= ohlc[i][0] ? 'rgba(244, 63, 94, 0.7)' : 'rgba(16, 185, 129, 0.7)';
+                            }
+                        }
+                    }
+                ]
+            };
+
+            klineChartInstance.setOption(option);
+        }
+
+        function setKLineZoom(days) {
+            document.querySelectorAll('.kline-filter-btn').forEach(b => b.classList.remove('active'));
+            if (event && event.target && event.target.classList) {
+                event.target.classList.add('active');
+            }
+
+            if (!klineChartInstance || currentKLineDates.length === 0) return;
+            const total = currentKLineDates.length;
+            let start = 0;
+            if (days > 0 && days < total) {
+                start = Math.max(0, Math.floor(((total - days) / total) * 100));
+            }
+            klineChartInstance.dispatchAction({
+                type: 'dataZoom',
+                start: start,
+                end: 100
+            });
         }
 
         function renderCard(prefix, d) {

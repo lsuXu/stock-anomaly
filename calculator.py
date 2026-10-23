@@ -31,7 +31,6 @@ class AnomalyCalculator:
         - 盘中: 目标期为"今日收盘"，以昨日收盘价(confirmed_close)为日涨幅基准，计算今日收盘涨幅阈值与现价剩余空间
         - 盘后: 目标期为"下一交易日"，以今日收盘价为基准，计算下一交易日涨幅阈值
         """
-        # 在 confirmed_klines 中，基期索引均为 -window_days
         base_idx = -window_days
         if abs(base_idx) > len(confirmed_stock_klines) or abs(base_idx) > len(confirmed_index_klines):
             raise ValueError(f"历史数据不足以支撑 {window_days} 天的异动计算")
@@ -46,31 +45,18 @@ class AnomalyCalculator:
 
         target_label = "今日收盘" if is_intraday else "下一交易日"
 
-        # 预期目标日指数收盘点位
         if is_intraday:
-            # 盘中: 默认以当前实时指数为基准加上假定变化
             target_index = realtime_index_price * (1.0 + assume_index_change)
-            # 当前盘中实时累计偏离度
             curr_dev = ((realtime_stock_price / p0 - 1.0) - (realtime_index_price / i0 - 1.0)) * 100.0
         else:
-            # 盘后: 以今日最终收盘指数点位为基准
             target_index = confirmed_index_close * (1.0 + assume_index_change)
-            # 今日已确认落袋累计偏离度
             curr_dev = ((confirmed_close / p0 - 1.0) - (confirmed_index_close / i0 - 1.0)) * 100.0
 
-        # 反解临界价格: (P_crit / P0 - 1) - (I_target / I0 - 1) = threshold
-        # => P_crit = P0 * (threshold + (I_target / I0))
         crit_price = round(p0 * (threshold + (target_index / i0)), 2)
-
-        # 1. 目标日涨跌幅红线 (%) - 相对于已确认收盘价 (盘中相对于昨收，盘后相对于今日收盘)
         daily_rise_threshold_pct = (crit_price / confirmed_close - 1.0) * 100.0
-
-        # 2. 从当前实时现价还能再涨 (%)
         remaining_rise_from_realtime_pct = (crit_price / realtime_stock_price - 1.0) * 100.0
-
         limit_pct = price_limit_rate * 100.0
 
-        # 状态判定
         if daily_rise_threshold_pct >= limit_pct:
             status = f"安全 ({target_label}涨停+{int(limit_pct)}%也不会触发)"
         elif daily_rise_threshold_pct > 0:
@@ -111,7 +97,6 @@ class AnomalyCalculator:
         first_limit_up_triggered = False
 
         for k in range(1, future_days + 1):
-            # 窗口期初倒推
             hist_offset = 10 - k
             if hist_offset > 0:
                 base_idx = -hist_offset
@@ -161,15 +146,12 @@ class AnomalyCalculator:
         future_days: int = 5,
         assume_index_change: float = 0.0
     ) -> AnomalyAnalysisReport:
-        """生成全面的异动分析报告"""
+        """生成全面的异动分析报告 (含长周期日K线序列)"""
 
         if is_intraday:
-            # 盘中模式:
-            # 最后一根K线代表今日盘中动态走势
             realtime_bar_stock = stock_klines[-1]
             realtime_bar_index = index_klines[-1]
             
-            # 已确认收盘历史序列截止到昨天
             confirmed_stock = stock_klines[:-1]
             confirmed_index = index_klines[:-1]
 
@@ -184,8 +166,6 @@ class AnomalyCalculator:
 
             session_text = "盘中交易中"
         else:
-            # 盘后模式:
-            # 最后一根K线已是今日敲定收盘价
             confirmed_stock = stock_klines
             confirmed_index = index_klines
 
@@ -250,7 +230,7 @@ class AnomalyCalculator:
             assume_daily_index_change=assume_index_change
         )
 
-        # 5. 整理历史明细表
+        # 5. 整理历史明细表 (最近15根K线走势对比)
         history_bars: List[Dict[str, Any]] = []
         recent_count = min(15, len(stock_klines))
         for i in range(-recent_count, 0):
@@ -265,6 +245,19 @@ class AnomalyCalculator:
                 "index_pct": i_bar.pct_change,
                 "daily_dev": round(s_bar.pct_change - i_bar.pct_change, 2),
                 "is_intraday": is_today_in_progress
+            })
+
+        # 6. 生成供给前端 K 线图表渲染的完整日K数据集 (可达300+天)
+        kline_chart_data: List[Dict[str, Any]] = []
+        for b in stock_klines:
+            kline_chart_data.append({
+                "date": b.date,
+                "open": b.open,
+                "close": b.close,
+                "lowest": b.low,
+                "highest": b.high,
+                "volume": b.volume,
+                "pct": b.pct_change
             })
 
         return AnomalyAnalysisReport(
@@ -287,5 +280,6 @@ class AnomalyCalculator:
             severe_10d=severe_10d,
             severe_30d=severe_30d,
             future_projections=future_projections,
-            history_bars=history_bars
+            history_bars=history_bars,
+            kline_chart_data=kline_chart_data
         )
