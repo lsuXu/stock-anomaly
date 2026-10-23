@@ -1,5 +1,5 @@
 """
-A股异动监控系统 - 核心计算引擎 (严谨区分盘中实时现价与已确认收盘价)
+A股异动监控系统 - 核心计算引擎 (严谨区分盘中实时现价与已确认收盘价，支持专业炒股软件口径)
 """
 from typing import List, Dict, Any
 from models import (
@@ -24,14 +24,27 @@ class AnomalyCalculator:
         threshold: float,
         price_limit_rate: float,
         is_intraday: bool,
+        base_mode: str = "window_start",
         assume_index_change: float = 0.0
     ) -> WindowDeviationDetail:
         """
         计算指定窗口 (3天、10天、30天) 的异动指标:
-        - 盘中: 目标期为"今日收盘"，以昨日收盘价(confirmed_close)为日涨幅基准，计算今日收盘涨幅阈值与现价剩余空间
-        - 盘后: 目标期为"下一交易日"，以今日收盘价为基准，计算下一交易日涨幅阈值
+        :param base_mode:
+            - 'window_start' (主流专业炒股软件口径，如同花顺、开盘啦、通达信):
+              包含今日在内整整 N 个交易日，取第 1 个交易日(倒数第 N 天)的收盘价作为期初基准价。
+              例如 10 日严重异动: 取 2026-10-12 (5.21元) 作为基期，算出今日涨超 +4.85% 触发异动。
+            - 'pre_window' (窗口前一日收盘价法):
+              取这 N 个交易日前一天的收盘价(倒数第 N+1 天)作为基准。
         """
-        base_idx = -window_days
+        if base_mode == "window_start":
+            # 窗口首日收盘价法 (专业炒股软件口径):
+            # 若今日是第 N 天，则首日在 confirmed_stock(截止昨日) 中的索引为 -(window_days - 1)
+            offset = max(1, window_days - 1)
+            base_idx = -offset
+        else:
+            # 窗口前一日收盘价法:
+            base_idx = -window_days
+
         if abs(base_idx) > len(confirmed_stock_klines) or abs(base_idx) > len(confirmed_index_klines):
             raise ValueError(f"历史数据不足以支撑 {window_days} 天的异动计算")
 
@@ -144,9 +157,10 @@ class AnomalyCalculator:
         index_klines: List[KLineBar],
         is_intraday: bool,
         future_days: int = 5,
-        assume_index_change: float = 0.0
+        assume_index_change: float = 0.0,
+        base_mode: str = "window_start"
     ) -> AnomalyAnalysisReport:
-        """生成全面的异动分析报告 (含长周期日K线序列)"""
+        """生成全面的异动分析报告 (含长周期日K线序列及口径匹配)"""
 
         if is_intraday:
             realtime_bar_stock = stock_klines[-1]
@@ -190,6 +204,7 @@ class AnomalyCalculator:
             threshold=config.normal_threshold,
             price_limit_rate=config.price_limit_rate,
             is_intraday=is_intraday,
+            base_mode=base_mode,
             assume_index_change=assume_index_change
         )
 
@@ -203,6 +218,7 @@ class AnomalyCalculator:
             threshold=1.00,
             price_limit_rate=config.price_limit_rate,
             is_intraday=is_intraday,
+            base_mode=base_mode,
             assume_index_change=assume_index_change
         )
 
@@ -216,6 +232,7 @@ class AnomalyCalculator:
             threshold=2.00,
             price_limit_rate=config.price_limit_rate,
             is_intraday=is_intraday,
+            base_mode=base_mode,
             assume_index_change=assume_index_change
         )
 
@@ -247,7 +264,7 @@ class AnomalyCalculator:
                 "is_intraday": is_today_in_progress
             })
 
-        # 6. 生成供给前端 K 线图表渲染的完整日K数据集 (可达300+天)
+        # 6. 生成供给前端 K 线图表渲染的完整日K数据集
         kline_chart_data: List[Dict[str, Any]] = []
         for b in stock_klines:
             kline_chart_data.append({

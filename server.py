@@ -40,7 +40,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .badge-session-intraday { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.4); }
         .badge-session-closed { background: rgba(56, 189, 248, 0.15); color: var(--blue); border: 1px solid rgba(56, 189, 248, 0.4); }
         
-        .control-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr 1fr 1.2fr auto; gap: 14px; align-items: end; }
+        .control-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 0.9fr 1fr 1.1fr 1.4fr auto; gap: 14px; align-items: end; }
         .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
         input[type="text"], input[type="number"], select { width: 100%; background: #0a1120; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: #fff; outline: none; transition: border-color 0.2s; }
         input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--blue); }
@@ -128,6 +128,13 @@ HTML_PAGE = """<!DOCTYPE html>
                     <option value="post_market">🌙 强制盘后模式 (测算明日)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>异动基准口径</label>
+                <select id="baseModeSelect">
+                    <option value="window_start" selected>🎯 炒股软件标准 (区间首日)</option>
+                    <option value="pre_window">📐 窗口前一日口径 (严谨10+1日)</option>
+                </select>
+            </div>
             <button class="btn-query" onclick="doQuery()">开始测算</button>
 
             <div class="quick-tags">
@@ -188,7 +195,9 @@ HTML_PAGE = """<!DOCTYPE html>
                     <span>当前实时偏离: <strong id="dev3d">--%</strong></span>
                 </div>
                 <div class="card-footer">
-                    <span>安全判定:</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);" id="baseDesc3d">基准起点: --</div>
+                    </div>
                     <span id="status3d" class="status-warn">计算中...</span>
                 </div>
             </div>
@@ -209,7 +218,9 @@ HTML_PAGE = """<!DOCTYPE html>
                     <span>当前累计偏离: <strong id="dev10d">--%</strong></span>
                 </div>
                 <div class="card-footer">
-                    <span>安全判定:</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);" id="baseDesc10d">基准起点: --</div>
+                    </div>
                     <span id="status10d" class="status-safe">计算中...</span>
                 </div>
             </div>
@@ -230,7 +241,9 @@ HTML_PAGE = """<!DOCTYPE html>
                     <span>当前累计偏离: <strong id="dev30d">--%</strong></span>
                 </div>
                 <div class="card-footer">
-                    <span>安全判定:</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);" id="baseDesc30d">基准起点: --</div>
+                    </div>
                     <span id="status30d" class="status-safe">计算中...</span>
                 </div>
             </div>
@@ -307,6 +320,7 @@ HTML_PAGE = """<!DOCTYPE html>
             const days = document.getElementById('daysInput').value.trim() || 5;
             const indexChg = document.getElementById('indexChgInput').value.trim() || 0.0;
             const mode = document.getElementById('modeSelect').value;
+            const baseMode = document.getElementById('baseModeSelect').value;
 
             if (!code) {
                 alert("请输入股票代码");
@@ -314,7 +328,7 @@ HTML_PAGE = """<!DOCTYPE html>
             }
 
             try {
-                const resp = await fetch(`/api/calculate?code=${code}&days=${days}&assume_index=${indexChg}&mode=${mode}`);
+                const resp = await fetch(`/api/calculate?code=${code}&days=${days}&assume_index=${indexChg}&mode=${mode}&base_mode=${baseMode}`);
                 const data = await resp.json();
 
                 if (!data.success) {
@@ -664,6 +678,11 @@ HTML_PAGE = """<!DOCTYPE html>
             const devSign = d.curr_realtime_deviation_pct >= 0 ? '+' : '';
             document.getElementById(`dev${prefix}`).innerText = `${devSign}${d.curr_realtime_deviation_pct.toFixed(2)}%`;
 
+            const baseElem = document.getElementById(`baseDesc${prefix}`);
+            if (baseElem) {
+                baseElem.innerText = `基准起点: ${d.start_date} (收盘${d.base_stock_price.toFixed(2)}元)`;
+            }
+
             document.getElementById(`status${prefix}`).innerText = d.status;
             const statusElem = document.getElementById(`status${prefix}`);
             if (d.status.includes("安全")) {
@@ -701,6 +720,7 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
             days_str = query.get("days", ["5"])[0]
             index_chg_str = query.get("assume_index", ["0.0"])[0]
             mode_param = query.get("mode", ["auto"])[0]
+            base_mode = query.get("base_mode", ["window_start"])[0]
 
             force_mode = None
             if mode_param == "intraday":
@@ -731,7 +751,8 @@ class AnomalyHTTPHandler(BaseHTTPRequestHandler):
                     index_klines=index_klines,
                     is_intraday=is_intraday,
                     future_days=days,
-                    assume_index_change=index_chg
+                    assume_index_change=index_chg,
+                    base_mode=base_mode
                 )
                 payload = {
                     "success": True,

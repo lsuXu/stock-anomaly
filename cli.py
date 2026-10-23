@@ -92,6 +92,7 @@ def main():
     parser.add_argument("--days", "-d", type=int, default=5, help="未来推演天数 (默认 5 天)")
     parser.add_argument("--assume-index", "-i", type=float, default=0.0, help="假定未来基准指数涨跌幅")
     parser.add_argument("--mode", "-m", type=str, default="auto", choices=["auto", "intraday", "post_market"], help="测算模式: auto, intraday, post_market")
+    parser.add_argument("--base-mode", "-b", type=str, default="window_start", choices=["window_start", "pre_window"], help="基准口径: window_start (炒股软件口径，区间首日), pre_window (窗口前一日)")
 
     args = parser.parse_args()
 
@@ -112,7 +113,8 @@ def main():
             index_klines=index_klines,
             is_intraday=is_intraday,
             future_days=args.days,
-            assume_index_change=args.assume_index
+            assume_index_change=args.assume_index,
+            base_mode=args.base_mode
         )
         render_report_cli(report, is_mock)
     except Exception as e:
