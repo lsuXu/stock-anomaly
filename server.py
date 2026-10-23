@@ -221,10 +221,10 @@ HTML_PAGE = """<!DOCTYPE html>
                 </select>
             </div>
             <div class="form-group">
-                <label>异动基准口径</label>
-                <select id="baseModeSelect">
-                    <option value="window_start" selected>🎯 炒股软件标准 (区间首日)</option>
-                    <option value="pre_window">📐 窗口前一日口径 (严谨10+1日)</option>
+                <label>10日异动基准口径 (市场通行双口径)</label>
+                <select id="baseModeSelect" onchange="onBaseModeChange(this.value)">
+                    <option value="window_start" selected>🎯 炒股软件口径 (倒数第10天/区间首日，000530对应+4.85%)</option>
+                    <option value="pre_window">📐 交易所严谨口径 (倒数第11天/前一日T-10，000530对应+7.48%)</option>
                 </select>
             </div>
             <button class="btn-query" onclick="doQuery()">开始测算</button>
@@ -392,7 +392,7 @@ HTML_PAGE = """<!DOCTYPE html>
                     <thead>
                         <tr>
                             <th>预测交易日</th>
-                            <th>基准基期 (10日首日)</th>
+                            <th id="sandBaseHeader">基准基期</th>
                             <th>10日异动临界价</th>
                             <th>若天天涨停价格</th>
                             <th>能否连续涨停</th>
@@ -1039,7 +1039,9 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const baseElem = document.getElementById(`baseDesc${prefix}`);
             if (baseElem) {
-                baseElem.innerText = `基准起点: ${d.start_date} (收盘${d.base_stock_price.toFixed(2)}元)`;
+                const baseMode = document.getElementById('baseModeSelect').value;
+                const modeLabel = baseMode === 'pre_window' ? '倒数第11天/前一日T-10' : '倒数第10天/区间首日';
+                baseElem.innerText = `基准起点: ${d.start_date} (${modeLabel}, 收盘${d.base_stock_price.toFixed(2)}元)`;
             }
 
             document.getElementById(`status${prefix}`).innerText = d.status;
@@ -1059,6 +1061,12 @@ HTML_PAGE = """<!DOCTYPE html>
         function renderSandtable(st, r) {
             if (!st) return;
             document.getElementById('sandtableSection').style.display = 'block';
+
+            const baseMode = document.getElementById('baseModeSelect').value;
+            const thElem = document.getElementById('sandBaseHeader');
+            if (thElem) {
+                thElem.innerText = baseMode === 'pre_window' ? '基准日 (倒数第11天/前一日T-10)' : '基准日 (倒数第10天/区间首日)';
+            }
 
             const targetLabel = r.is_intraday ? "今日" : "下一交易日";
             document.getElementById('sandTargetDayLabel').innerText = `假设${targetLabel}收盘走势推演:`;
@@ -1209,7 +1217,22 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
+        function onBaseModeChange(val) {
+            try {
+                localStorage.setItem('stock_base_mode', val);
+            } catch (e) {}
+            doQuery();
+        }
+
         window.onload = () => {
+            // 恢复上次选择的基准口径 (默认炒股软件口径)
+            try {
+                const savedMode = localStorage.getItem('stock_base_mode');
+                if (savedMode && document.getElementById('baseModeSelect')) {
+                    document.getElementById('baseModeSelect').value = savedMode;
+                }
+            } catch (e) {}
+
             // 优先恢复上次测算的股票代码，无记录时默认 000530
             const lastCode = localStorage.getItem('stock_last_symbol') || '000530';
             const input = document.getElementById('symbolInput');
